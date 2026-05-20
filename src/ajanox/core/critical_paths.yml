@@ -1,0 +1,38 @@
+# Critical paths — file_write izni olsa bile, bu yollara yazma her seferinde
+# runtime onay gerektirir. (Spec kararı F).
+#
+# Yeni yol eklemek: minor version bump.
+# Yol ifadesi tilde (~) ile başlayabilir; runtime'da expanduser uygulanır.
+
+critical_paths:
+  # System paths (Linux + macOS)
+  - /etc
+  - /usr
+  - /bin
+  - /sbin
+  - /var
+  - /opt
+  - /boot
+
+  # macOS-specific
+  - /System
+  - /Library
+  - /Applications
+  - /private/etc
+  - /private/var
+
+  # User-sensitive paths
+  - ~/.ssh
+  - ~/.gnupg
+  - ~/.aws
+  - ~/.config
+  - ~/.kube
+  - ~/.docker
+  - ~/.bash_history
+  - ~/.zsh_history
+  - ~/.bash_profile
+  - ~/.bashrc
+  - ~/.zshrc
+  - ~/.profile
+  - ~/Library      # macOS user library
+  - ~/Documents    # genel kullanıcı için kritik

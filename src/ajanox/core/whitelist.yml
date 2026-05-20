@@ -1,0 +1,93 @@
+# shell_safe whitelist.
+# Bu listedeki komutlar runtime onayı GEREKTİRMEZ.
+# Read-only kabul edilen, yan etkisi olmayan komutlar.
+# Yeni komut eklemek: minor version bump + güvenlik incelemesi.
+
+shell_safe_commands:
+  # Filesystem (read-only)
+  - ls
+  - find
+  - du
+  - df
+  - file
+  - stat
+  - cat
+  - head
+  - tail
+  - wc
+  - tree
+
+  # Text processing (read-only)
+  - grep
+  - awk
+  - sed       # sed -n (no in-place) güvenli; -i tehlikeli, runtime'da denetlenir
+  - sort
+  - uniq
+  - cut
+  - tr
+  - jq
+
+  # Process / system info
+  - ps
+  - top      # batch mode (-b) güvenli
+  - uptime
+  - whoami
+  - id
+  - uname
+  - hostname
+  - date
+  - env
+  - which
+  - whereis
+
+  # Network info (read-only)
+  - ifconfig
+  - ip
+  - netstat
+  - ping     # -c <num> ile sınırlı
+  - dig
+  - nslookup
+  - host
+  - traceroute
+
+  # Misc
+  - echo
+  - printf
+  - true
+  - false
+  - test
+
+
+# Network binary'leri. Bunlar shell_safe DEĞİL; network_read veya network_write
+# permission'ı gerektirir. POST/PUT/DELETE flag'leri tespit edilirse network_write.
+network_binaries:
+  - curl
+  - wget
+  - ping
+  - dig
+  - nslookup
+  - host
+  - traceroute
+
+
+# Bildirim binary'leri. notification permission'ı gerektirir.
+notification_binaries:
+  - osascript        # macOS — sadece display notification için
+  - notify-send      # Linux libnotify
+  - terminal-notifier  # macOS opsiyonel
+
+
+# network_write tetikleyen flag'ler. Bunlardan biri varsa network_read yerine
+# network_write kategorisine yükselt.
+network_write_indicators:
+  - "-X POST"
+  - "-X PUT"
+  - "-X DELETE"
+  - "-X PATCH"
+  - "--data"
+  - "--data-binary"
+  - "--data-raw"
+  - "--upload-file"
+  - "-T "
+  - "-F "
+  - "--form"
