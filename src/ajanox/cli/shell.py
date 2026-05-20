@@ -5,28 +5,62 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .. import __version__
 from ..core.agent import DEFAULT_MODEL, run_agent
-from ..core.skill_loader import load_skill_catalog
+from ..core.skill_loader import Skill, load_skill_catalog
 
 
-def _default_skills_dir() -> Path:
-    """Skill dizinini bul. Geliştirme: paket altındaki skills/.
-    İleride: ~/.ajanox/skills/ veya XDG paths."""
-    pkg_root = Path(__file__).resolve().parents[3]
-    return pkg_root / "skills"
+def _builtin_skills_dir() -> Path:
+    """Paket içi (pip install ile gelen) skill'ler — site-packages/ajanox/builtin_skills."""
+    return Path(__file__).resolve().parent.parent / "builtin_skills"
+
+
+def _project_skills_dir() -> Path:
+    """Geliştirme modu: cwd/skills/ — repo'dan çalıştırırken görünür."""
+    return Path.cwd() / "skills"
+
+
+def _user_skills_dir() -> Path:
+    """Kullanıcı skill'leri: ~/.ajanox/skills/"""
+    return Path(os.environ.get("AJANOX_HOME", str(Path.home() / ".ajanox"))) / "skills"
+
+
+def _collect_skills() -> tuple[list[Skill], list[str]]:
+    """Tüm kaynaklardan skill'leri topla; (catalog, source_labels) döner.
+
+    Override: AJANOX_SKILLS_DIR env varsa SADECE o yol kullanılır.
+    """
+    override = os.environ.get("AJANOX_SKILLS_DIR")
+    if override:
+        return load_skill_catalog(Path(override)), [override]
+
+    catalog: list[Skill] = []
+    sources: list[str] = []
+    for source_path in (
+        _builtin_skills_dir(),
+        _project_skills_dir(),
+        _user_skills_dir(),
+    ):
+        if source_path.exists():
+            loaded = load_skill_catalog(source_path)
+            if loaded:
+                catalog.extend(loaded)
+                sources.append(str(source_path))
+    return catalog, sources
 
 
 def run() -> int:
-    skills_dir = Path(os.environ.get("AJANOX_SKILLS_DIR", str(_default_skills_dir())))
-    catalog = load_skill_catalog(skills_dir)
+    catalog, sources = _collect_skills()
     model = os.environ.get("AJANOX_MODEL", DEFAULT_MODEL)
 
-    print(f"Ajanox v0.1 — model: {model}")
-    print(f"Yüklü skill sayısı: {len(catalog)} (kaynak: {skills_dir})")
+    print(f"Ajanox v{__version__} — model: {model}")
+    print(f"Yüklü skill sayısı: {len(catalog)}")
+    for src in sources:
+        print(f"  kaynak: {src}")
     for s in catalog:
         print(f"  - {s.name} (v{s.version}): {s.description}")
     if not catalog:
-        print("  (skills/ klasörü boş veya yok)")
+        print("  (henüz skill yok — 'ajanox skill init <name>' ile başla)")
     print("Çıkmak için 'q' yaz, konuşmayı sıfırlamak için '/reset'.\n")
 
     history: list[dict] = []  # multi-turn conversation state (sliding window)

@@ -55,7 +55,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_list = sub.add_parser("list", help="Yüklü skill'leri tablo halinde göster")
     p_list.add_argument(
         "--source",
-        choices=("all", "system", "user"),
+        choices=("all", "builtin", "system", "user"),
         default="all",
         help="Hangi kaynaktan listelensin",
     )
@@ -121,6 +121,11 @@ def _project_skills_dir() -> Path:
     return Path.cwd() / "skills"
 
 
+def _builtin_skills_dir() -> Path:
+    """Pip install ile gelen yerleşik skill'ler."""
+    return Path(__file__).resolve().parent.parent / "builtin_skills"
+
+
 def _boilerplate(name: str, description: str) -> str:
     title = name.replace("-", " ").title()
     return f"""---
@@ -174,6 +179,10 @@ echo "TODO: gerçek komutu yaz"
 # ============================================================
 def _cmd_list(ns: argparse.Namespace) -> int:
     sources: list[tuple[str, Path]] = []
+    if ns.source in ("all", "builtin"):
+        builtin = _builtin_skills_dir()
+        if builtin.exists():
+            sources.append(("builtin", builtin))
     if ns.source in ("all", "system"):
         sys_dir = _project_skills_dir()
         if sys_dir.exists():

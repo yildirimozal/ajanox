@@ -45,6 +45,9 @@ Issues = "https://github.com/yildirimozal/ajanox/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ajanox"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"skills" = "ajanox/builtin_skills"
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
