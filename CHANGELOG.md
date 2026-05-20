@@ -5,6 +5,27 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-20
+
+### Eklendi
+- **Web Dashboard MVP** (`ajanox web`) — tarayıcıdan kullanılabilir UI:
+  - FastAPI + WebSocket backend (`src/ajanox/web/server.py`)
+  - Vue 3 frontend (CDN, build pipeline yok), tek HTML dosyası
+  - Skill panel (sol sidebar) — `/api/info` ile otomatik yüklenir
+  - Chat akışı: real-time event stream (match → tool_call → tool_result → final)
+  - Permission denied görsel (kırmızı kutu)
+  - `/reset` butonu (multi-turn history sıfırlama)
+  - Dark theme
+  - `pip install ajanox[web]` opsiyonel deps (`fastapi>=0.110`, `uvicorn[standard]>=0.27`)
+- `core/agent.py`'a `on_event` callback parametresi — agent loop event'leri stream eder
+  (CLI'da print'ler aynı kalır, web mode'da WebSocket'a yollar)
+- `cli/web.py` — `ajanox web --host --port --no-browser` komut handler
+
+### v0.3.0'da bilinen kısıtlama
+- **Approval HÂLÂ terminal'de** — yüksek risk komutlar (örn. `delete-old-logs`) için
+  web kullanıcısı serverın çalıştığı terminali takip etmeli. Web-native approval
+  modal v0.3.1'de gelecek.
+
 ## [0.2.1] - 2026-05-20
 
 ### Eklendi

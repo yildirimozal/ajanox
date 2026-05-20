@@ -3,6 +3,7 @@
 Kullanım:
   ajanox                 — doğal dil shell başlatır (varsayılan)
   ajanox shell           — aynı, açık
+  ajanox web             — web dashboard'u başlat (pip install ajanox[web] gerekli)
   ajanox skill init NAME — yeni skill boilerplate üret
   ajanox skill list      — yüklü skill'leri listele
   ajanox skill check     — skill'in spec'e uyumunu kontrol et
@@ -12,7 +13,7 @@ from __future__ import annotations
 
 import sys
 
-from . import shell, skill
+from . import shell, skill, web
 
 
 def main() -> int:
@@ -21,6 +22,8 @@ def main() -> int:
         return shell.run()
     if argv[0] == "skill":
         return skill.run(argv[1:])
+    if argv[0] == "web":
+        return web.run(argv[1:])
     print(f"Bilinmeyen komut: {argv[0]}", file=sys.stderr)
     print(__doc__, file=sys.stderr)
     return 1

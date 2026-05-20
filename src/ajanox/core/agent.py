@@ -98,6 +98,7 @@ def run_agent(
     model: str = DEFAULT_MODEL,
     max_iter: int = DEFAULT_MAX_ITER,
     history_limit: int = DEFAULT_HISTORY_LIMIT,
+    on_event=None,
 ) -> list[dict]:
     """Bir kullanıcı sorgusunu uçtan uca çalıştır.
 
@@ -124,8 +125,18 @@ def run_agent(
     )
     matched_skill, score = find_best_match(user_input, catalog, context=context_blob)
     match_hint = format_match_hint(matched_skill) if matched_skill and score >= 1 else ""
+
+    def emit(event: dict) -> None:
+        """Web dashboard veya başka observer için event yolla."""
+        if on_event:
+            try:
+                on_event(event)
+            except Exception:
+                pass
+
     if matched_skill:
         print(f"  [match] {matched_skill.name} (score={score})")
+        emit({"type": "match", "skill": matched_skill.name, "score": score})
 
     # Aktif güvenlik bağlamı: match varsa skill'in izinleri, yoksa sistem defaults
     if matched_skill:
@@ -161,6 +172,7 @@ def run_agent(
             print(
                 f"\nAjanox: {final_response}\n" if final_response else "\n(Boş cevap)\n"
             )
+            emit({"type": "final", "content": final_response})
             return _trimmed(history, user_input, final_response, history_limit)
 
         name = tool_call.get("name", "")
@@ -169,6 +181,7 @@ def run_agent(
         if name not in PRIMITIVES:
             result = f"Hata: '{name}' bilinmeyen tool."
             print(f"  [warn] unknown tool: {name}")
+            emit({"type": "warn", "message": f"unknown tool: {name}"})
         elif not enforcer.enforce(
             active_skill, active_perms, name, args, skill_location=active_location
         ):
@@ -177,15 +190,18 @@ def run_agent(
                 f"(izinler: {list(active_perms) or '[]'})."
             )
             print(f"  [denied] {name} for skill={active_skill}")
+            emit({"type": "denied", "tool": name, "skill": active_skill})
         else:
             if name != "bash":
                 print(f"  [tool] {name}({args})")
+            emit({"type": "tool_call", "tool": name, "args": args})
             try:
                 result = PRIMITIVES[name](**args)
             except TypeError as exc:
                 result = f"Hata: tool argümanları yanlış: {exc}"
             preview = str(result)[:120].replace("\n", " ")
             print(f"  [out ] {preview}{'…' if len(str(result)) > 120 else ''}")
+            emit({"type": "tool_result", "tool": name, "output": str(result)[:1000]})
 
         messages.append(
             {"role": "user", "content": f"[TOOL RESULT - {name}]\n{result}"}
