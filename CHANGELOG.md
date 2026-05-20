@@ -5,6 +5,20 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+### Eklendi
+- `ajanox skill init <name>` — yeni skill için boilerplate üretir
+  - `--user` flag ile `~/.ajanox/skills/` altına kurar (default: `cwd/skills/`)
+  - `--description "..."` ile non-interactive
+- `ajanox skill list` — yüklü skill'leri tablo halinde gösterir (`--source all|system|user`)
+- `ajanox skill check <path>` — SKILL.md'nin spec'e uyumunu doğrular:
+  - Zorunlu alan kontrolü (name, version, description, ajanox, permissions)
+  - kebab-case name + semver version
+  - Yasak permission tespiti (sudo)
+  - Bilinmeyen permission uyarısı
+  - Önerilen alan + body bölümü uyarıları
+- `ajanox skill migrate` — v1.0 için stub (henüz aktif değil)
+- 13 yeni unit test (toplam 63)
+
 ## [0.2.0] - 2026-05-20
 
 İlk public release. POC fazı + güvenlik katmanı tamamlandı.
