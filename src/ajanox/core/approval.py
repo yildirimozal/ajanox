@@ -4,13 +4,25 @@ Yüksek/kritik risk tool çağrılarında kullanıcıya görünür prompt.
 "T (Tümü)" seçeneği aynı skill+tool kombinasyonu için oturum boyunca otomatik onay.
 
 `sudo` permission seviyesinde T seçeneği YOK — her seferinde sorulur (Spec kararı).
+
+Pluggable handler API:
+    Web dashboard veya başka UI, `set_handler(callable)` ile terminal prompt'unu
+    geçersiz kılabilir. Handler signature:
+
+        handler(skill, tool, command_preview, risk, allow_session) -> str
+            "yes" | "no" | "all"
+
+    "all" sadece allow_session=True iken anlamlı — session cache'e eklenir.
 """
 
 from __future__ import annotations
 
+from typing import Callable, Optional
+
 
 _SESSION_APPROVED: set[tuple[str, str]] = set()
 _AUTO_APPROVE = False  # tests için
+_HANDLER: Optional[Callable[[str, str, str, str, bool], str]] = None
 
 
 def set_auto_approve(value: bool) -> None:
@@ -19,33 +31,19 @@ def set_auto_approve(value: bool) -> None:
     _AUTO_APPROVE = value
 
 
+def set_handler(handler: Optional[Callable[[str, str, str, str, bool], str]]) -> None:
+    """Terminal prompt yerine kullanılacak callable. None → terminal'e geri dön."""
+    global _HANDLER
+    _HANDLER = handler
+
+
 def reset_session() -> None:
     _SESSION_APPROVED.clear()
 
 
-def request_approval(
-    skill: str,
-    tool: str,
-    command_preview: str,
-    risk: str = "high",
-    allow_session: bool = True,
-) -> bool:
-    """Kullanıcıya onay sorgusu. True = onaylandı, False = reddedildi.
-
-    Args:
-        skill: skill adı
-        tool: tool adı (read_file, bash, vs.)
-        command_preview: komut özeti (bash için komut metni, dosya için yol)
-        risk: "high" veya "critical"
-        allow_session: "T (Tümü)" seçeneği gösterilsin mi (sudo'da False)
-    """
-    if _AUTO_APPROVE:
-        return True
-
-    key = (skill, tool)
-    if allow_session and key in _SESSION_APPROVED:
-        return True
-
+def _terminal_prompt(
+    skill: str, tool: str, command_preview: str, risk: str, allow_session: bool
+) -> str:
     preview = command_preview if len(command_preview) <= 100 else command_preview[:97] + "…"
     options = "[E]vet  [H]ayır" + ("  [T]ümünü bu oturum" if allow_session else "")
 
@@ -61,11 +59,42 @@ def request_approval(
     try:
         response = input("> ").strip().lower()
     except (EOFError, KeyboardInterrupt):
-        return False
+        return "no"
 
     if allow_session and response in ("t", "tum", "tümü", "tumu"):
+        return "all"
+    if response in ("e", "evet", "y", "yes"):
+        return "yes"
+    return "no"
+
+
+def request_approval(
+    skill: str,
+    tool: str,
+    command_preview: str,
+    risk: str = "high",
+    allow_session: bool = True,
+) -> bool:
+    """Kullanıcıya onay sorgusu. True = onaylandı, False = reddedildi.
+
+    Sıra: auto_approve → session cache → custom handler → terminal prompt.
+    """
+    if _AUTO_APPROVE:
+        return True
+
+    key = (skill, tool)
+    if allow_session and key in _SESSION_APPROVED:
+        return True
+
+    prompt = _HANDLER if _HANDLER else _terminal_prompt
+    try:
+        decision = prompt(skill, tool, command_preview, risk, allow_session)
+    except Exception:
+        decision = "no"
+
+    if decision == "all" and allow_session:
         _SESSION_APPROVED.add(key)
         return True
-    if response in ("e", "evet", "y", "yes"):
+    if decision == "yes":
         return True
     return False

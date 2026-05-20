@@ -105,6 +105,65 @@
 
         .empty { color: var(--muted); text-align: center; margin-top: 80px; }
         .empty h2 { font-size: 22px; margin-bottom: 12px; color: var(--text); }
+
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            max-width: 560px;
+            width: 90%;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+        }
+        .modal h3 { font-size: 17px; margin-bottom: 4px; }
+        .modal .risk-tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-family: monospace;
+            letter-spacing: 0.5px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .modal .risk-high { background: #4a2a1a; color: #ffaa66; }
+        .modal .risk-critical { background: #5a1a1a; color: #ff7777; }
+        .modal .subtle { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+        .modal .row { margin: 10px 0; font-size: 13px; }
+        .modal .row label { color: var(--muted); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .modal .row .value { font-family: monospace; }
+        .modal pre.cmd {
+            background: #0a0c12;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 180px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+        .modal .actions { display: flex; gap: 8px; margin-top: 20px; }
+        .modal button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .modal .btn-no { background: #3a1a1a; color: #ffaaaa; border-color: #5a2828; }
+        .modal .btn-all { background: #2a2a3a; color: var(--muted); }
+        .modal .btn-yes { background: var(--accent); color: #0a0c12; border-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -149,6 +208,42 @@
             <button @click="send" :disabled="thinking || !draft.trim()">Gönder</button>
         </div>
     </main>
+
+    <div v-if="approvalRequest" class="modal-overlay">
+        <div class="modal">
+            <h3>
+                🛡️ Güvenlik Onayı
+                <span :class="['risk-tag', approvalRequest.risk === 'critical' ? 'risk-critical' : 'risk-high']">
+                    {{ approvalRequest.risk }}
+                </span>
+            </h3>
+            <div class="subtle">Bu komut çalıştırılmak istiyor — onaylar mısın?</div>
+
+            <div class="row">
+                <label>Skill</label>
+                <span class="value">{{ approvalRequest.skill }}</span>
+            </div>
+            <div class="row">
+                <label>Tool</label>
+                <span class="value">{{ approvalRequest.tool }}</span>
+            </div>
+            <div class="row">
+                <label>Komut / İçerik</label>
+                <pre class="cmd">{{ approvalRequest.command }}</pre>
+            </div>
+
+            <div class="actions">
+                <button class="btn-no" @click="respondApproval('no')">[H]ayır</button>
+                <button
+                    v-if="approvalRequest.allow_session"
+                    class="btn-all"
+                    @click="respondApproval('all')"
+                    title="Bu oturum boyunca aynı skill+tool için otomatik onay"
+                >[T]ümünü onayla</button>
+                <button class="btn-yes" @click="respondApproval('yes')">[E]vet</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script type="module">
@@ -163,6 +258,7 @@ createApp({
         const thinking = ref(false);
         const messagesEl = ref(null);
         const textareaEl = ref(null);
+        const approvalRequest = ref(null);
         let ws = null;
 
         const scrollDown = async () => {
@@ -255,8 +351,37 @@ createApp({
                 case 'reset_ok':
                     messages.value = [];
                     status.value = 'Konuşma sıfırlandı';
+                    approvalRequest.value = null;
+                    break;
+                case 'approval_request':
+                    approvalRequest.value = {
+                        request_id: event.request_id,
+                        skill: event.skill,
+                        tool: event.tool,
+                        command: event.command,
+                        risk: event.risk,
+                        allow_session: event.allow_session,
+                    };
+                    status.value = 'Güvenlik onayı bekleniyor…';
                     break;
             }
+            scrollDown();
+        };
+
+        const respondApproval = (decision) => {
+            if (!approvalRequest.value) return;
+            ws.send(JSON.stringify({
+                type: 'approval_response',
+                request_id: approvalRequest.value.request_id,
+                decision: decision,
+            }));
+            messages.value.push({
+                kind: decision === 'no' ? 'denied' : 'tool',
+                role: `onay: ${decision}`,
+                content: `${approvalRequest.value.tool} → ${decision === 'no' ? 'reddedildi' : 'izinli'}`,
+            });
+            approvalRequest.value = null;
+            status.value = 'Düşünüyor…';
             scrollDown();
         };
 
@@ -281,7 +406,12 @@ createApp({
             connect();
         });
 
-        return { messages, info, draft, status, thinking, messagesEl, textareaEl, send, resetConversation };
+        return {
+            messages, info, draft, status, thinking,
+            messagesEl, textareaEl,
+            approvalRequest,
+            send, resetConversation, respondApproval,
+        };
     }
 }).mount('#app');
 </script>

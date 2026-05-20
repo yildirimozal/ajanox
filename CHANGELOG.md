@@ -5,6 +5,25 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-20
+
+### Eklendi
+- **Web-native approval modal** — yüksek/kritik risk komutlar artık tarayıcıda
+  modal olarak çıkar; web kullanıcısı terminale bağımlı değil.
+  - `approval.set_handler()` pluggable API — terminal'i geçersiz kılar
+  - `web/server.py` içinde `WebApprovalBroker` — async event loop ↔ sync agent
+    thread arası `threading.Event` + `run_coroutine_threadsafe` köprüsü
+  - WebSocket mesaj tipleri: `approval_request` (server→client), `approval_response`
+    (client→server) — `decision: yes | no | all`
+  - Frontend modal (Vue 3): risk-tag renkli (high=turuncu, critical=kırmızı),
+    komut preview, 3 buton (E / H / T-Tümü)
+  - Bağlantı kopunca handler otomatik temizlenir (single-user assumption v0.3.x)
+- 4 yeni unit test (toplam 80) — custom handler yes/no/all/exception senaryoları
+
+### Düzeltildi
+- v0.3.0'da yüksek risk skill'ler web'de stuck'a düşüyordu (terminal'i takip
+  etmek gerekiyordu) — artık modal ile çözülür.
+
 ## [0.3.0] - 2026-05-20
 
 ### Eklendi
