@@ -6,6 +6,11 @@ formatı, [SemVer](https://semver.org) sürümleme.
 ## [Unreleased]
 
 ### Eklendi
+- **Yeni built-in skill: `system-info`** — uname + uptime + df çıktısını
+  birleştirip Türkçe sistem raporu sunar. Permissions: `[shell_safe, system_info]`
+- **Yeni built-in skill: `delete-old-logs`** — POC senaryosu: N günden eski log
+  dosyalarını listeler ve siler. Permissions: `[shell_safe, shell_unsafe, file_write]`.
+  Güvenlik katmanı (runtime approval) rm öncesi onay sorar.
 - `ajanox skill init <name>` — yeni skill için boilerplate üretir
   - `--user` flag ile `~/.ajanox/skills/` altına kurar (default: `cwd/skills/`)
   - `--description "..."` ile non-interactive
@@ -66,6 +71,8 @@ formatı, [SemVer](https://semver.org) sürümleme.
 - 15/15 end-to-end smoke test (weather + find-large-files + mac-notification)
 
 ### Bilinen sınırlamalar (v0.3+'a)
+- **Multi-turn conversation yok** — her kullanıcı girdisi fresh conversation;
+  `delete-old-logs` gibi iki-aşamalı skill'ler bazen tam tek turda çalışmaz
 - Flag-level whitelist (`sed -i` vs `sed -n` ayrımı yok)
 - Domain allowlist (network_read tüm internet'e açık)
 - Skill imzalama (marketplace için)
