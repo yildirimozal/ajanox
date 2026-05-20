@@ -56,6 +56,9 @@ _NOTIFICATION_BINARIES: set[str] = set(_WHITELIST_DATA.get("notification_binarie
 _NETWORK_WRITE_INDICATORS: list[str] = list(
     _WHITELIST_DATA.get("network_write_indicators", [])
 )
+_DANGEROUS_FLAGS: dict[str, list[str]] = dict(
+    _WHITELIST_DATA.get("dangerous_flags", {})
+)
 
 _CRITICAL_PATHS = [
     os.path.expanduser(p)
@@ -96,6 +99,18 @@ _CATEGORY_RANK = {
 }
 
 
+def _has_dangerous_flag(binary: str, segment: str) -> bool:
+    """Binary için tehlikeli flag (örn. find -delete, sed -i) var mı?"""
+    flags = _DANGEROUS_FLAGS.get(binary, [])
+    if not flags:
+        return False
+    try:
+        tokens = shlex.split(segment)
+    except ValueError:
+        return True  # parse edemezsek güvensiz say
+    return any(flag in tokens for flag in flags)
+
+
 def _categorize_segment(segment: str) -> str:
     """Tek bir komut segmentini kategoriye ata."""
     binary = _first_binary(segment)
@@ -107,6 +122,9 @@ def _categorize_segment(segment: str) -> str:
     if binary in _NOTIFICATION_BINARIES:
         return "notification"
     if binary in _SHELL_SAFE_BINARIES:
+        # find -delete, sed -i gibi tehlikeli flag varsa shell_unsafe'e yükselt
+        if _has_dangerous_flag(binary, segment):
+            return "shell_unsafe"
         return "shell_safe"
     return "shell_unsafe"
 

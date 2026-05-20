@@ -77,6 +77,19 @@ notification_binaries:
   - terminal-notifier  # macOS opsiyonel
 
 
+# Bazı binary'ler whitelist'te (`shell_safe`) olabilir AMA belirli flag'leri
+# tehlikelidir — bu durumda komut shell_unsafe'e yükseltilir.
+# (v0.3'e ertelenen flag-level whitelist'in mini versiyonu — kritik durumlar.)
+dangerous_flags:
+  find:
+    - -delete
+    - -exec
+    - -execdir
+  sed:
+    - -i
+    - --in-place
+
+
 # network_write tetikleyen flag'ler. Bunlardan biri varsa network_read yerine
 # network_write kategorisine yükselt.
 network_write_indicators:

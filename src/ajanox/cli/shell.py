@@ -27,7 +27,9 @@ def run() -> int:
         print(f"  - {s.name} (v{s.version}): {s.description}")
     if not catalog:
         print("  (skills/ klasörü boş veya yok)")
-    print("Çıkmak için 'q' yaz.\n")
+    print("Çıkmak için 'q' yaz, konuşmayı sıfırlamak için '/reset'.\n")
+
+    history: list[dict] = []  # multi-turn conversation state (sliding window)
 
     while True:
         try:
@@ -35,8 +37,13 @@ def run() -> int:
         except (EOFError, KeyboardInterrupt):
             print()
             break
+        if not user_input:
+            continue
         if user_input.lower() in ("q", "quit", "exit", "çık"):
             break
-        if user_input:
-            run_agent(user_input, catalog, model=model)
+        if user_input.lower() in ("/reset", "/yeni", "/clear"):
+            history = []
+            print("✓ Konuşma sıfırlandı.\n")
+            continue
+        history = run_agent(user_input, catalog, history=history, model=model)
     return 0

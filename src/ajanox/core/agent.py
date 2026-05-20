@@ -29,6 +29,7 @@ OLLAMA_URL = os.environ.get("AJANOX_OLLAMA_URL", "http://localhost:11434/api/cha
 DEFAULT_MODEL = os.environ.get("AJANOX_MODEL", "qwen2.5:14b")
 DEFAULT_MAX_ITER = 8
 DEFAULT_TEMPERATURE = 0.2
+DEFAULT_HISTORY_LIMIT = 10  # son N user/assistant mesajı (5 turn) — sliding window
 
 TOOL_PROTOCOL_PROMPT = """
 === TOOL CALLING PROTOKOLÜ (ZORUNLU) ===
@@ -93,11 +94,35 @@ def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> dict:
 def run_agent(
     user_input: str,
     catalog: list[Skill],
+    history: list[dict] | None = None,
     model: str = DEFAULT_MODEL,
     max_iter: int = DEFAULT_MAX_ITER,
-) -> None:
-    """Bir kullanıcı sorgusunu uçtan uca çalıştır."""
-    matched_skill, score = find_best_match(user_input, catalog)
+    history_limit: int = DEFAULT_HISTORY_LIMIT,
+) -> list[dict]:
+    """Bir kullanıcı sorgusunu uçtan uca çalıştır.
+
+    Args:
+        user_input: bu turdaki kullanıcı mesajı
+        catalog: yüklü skill'ler
+        history: önceki user/assistant mesajları (tool çağrıları DAHİL DEĞİL).
+            None ise boş başlar.
+        model: Ollama model adı
+        max_iter: tool-çağrı iterasyon limiti
+        history_limit: sliding window — son N mesaj korunur
+
+    Returns:
+        Güncellenmiş history (bu turdaki user input + final assistant yanıtı
+        eklenmiş; sliding window uygulanmış).
+    """
+    history = history or []
+
+    # Multi-turn skill continuity: önceki turn'lerin user/assistant content'ini
+    # matcher'a context olarak ver. "evet sil" gibi kısa girdilerde önceki
+    # turn'de geçen skill match'i korunur.
+    context_blob = " ".join(
+        m.get("content", "") for m in history[-4:] if isinstance(m, dict)
+    )
+    matched_skill, score = find_best_match(user_input, catalog, context=context_blob)
     match_hint = format_match_hint(matched_skill) if matched_skill and score >= 1 else ""
     if matched_skill:
         print(f"  [match] {matched_skill.name} (score={score})")
@@ -120,8 +145,10 @@ def run_agent(
     )
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
+        *history,  # önceki turn'lerin user/assistant mesajları
         {"role": "user", "content": user_input},
     ]
+    final_response = ""
 
     for _ in range(max_iter):
         msg = chat(messages, model=model)
@@ -130,9 +157,11 @@ def run_agent(
 
         tool_call = extract_tool_call(content)
         if not tool_call:
-            clean = strip_tool_call_tags(content)
-            print(f"\nAjanox: {clean}\n" if clean else "\n(Boş cevap)\n")
-            return
+            final_response = strip_tool_call_tags(content)
+            print(
+                f"\nAjanox: {final_response}\n" if final_response else "\n(Boş cevap)\n"
+            )
+            return _trimmed(history, user_input, final_response, history_limit)
 
         name = tool_call.get("name", "")
         args = tool_call.get("arguments", {}) or {}
@@ -175,3 +204,24 @@ def run_agent(
             )
 
     print("\n(Max iterasyon aşıldı.)\n")
+    return _trimmed(history, user_input, final_response, history_limit)
+
+
+def _trimmed(
+    prior_history: list[dict],
+    user_input: str,
+    assistant_response: str,
+    limit: int,
+) -> list[dict]:
+    """Yeni history hesapla + sliding window uygula.
+
+    Tool çağrılarını history'e koyma — sadece düz user/assistant pair'leri.
+    Bu context window'u şişirmemek için kritik.
+    """
+    new = list(prior_history)
+    new.append({"role": "user", "content": user_input})
+    if assistant_response:
+        new.append({"role": "assistant", "content": assistant_response})
+    if limit > 0 and len(new) > limit:
+        new = new[-limit:]
+    return new

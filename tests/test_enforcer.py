@@ -38,6 +38,31 @@ def test_shell_unsafe_pipe_with_one_bad():
     assert not enforcer.is_shell_safe("ls | rm")
 
 
+def test_dangerous_flag_find_delete():
+    # find whitelist'te AMA -delete tehlikeli flag → shell_unsafe
+    assert not enforcer.is_shell_safe("find /tmp -name '*.log' -delete")
+    assert enforcer.categorize_bash_command(
+        "find /tmp -name '*.log' -delete"
+    ) == "shell_unsafe"
+
+
+def test_dangerous_flag_find_exec():
+    assert not enforcer.is_shell_safe("find . -exec rm {} \\;")
+
+
+def test_dangerous_flag_sed_in_place():
+    assert not enforcer.is_shell_safe("sed -i 's/x/y/' file.txt")
+
+
+def test_find_without_dangerous_flag_still_safe():
+    assert enforcer.is_shell_safe("find /tmp -name '*.log'")
+    assert enforcer.is_shell_safe("find . -type f -mtime +30")
+
+
+def test_sed_without_in_place_still_safe():
+    assert enforcer.is_shell_safe("sed -n '1,5p' file.txt")
+
+
 def test_classify_tool_call():
     assert enforcer.classify_tool_call("read_file", {"path": "/tmp/x"}) == "file_read"
     assert enforcer.classify_tool_call("list_files", {"directory": "."}) == "file_read"

@@ -5,7 +5,19 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-20
+
 ### Eklendi
+- **Multi-turn conversation state** — REPL artık konuşma geçmişini hatırlar
+  (sliding window: son 10 mesaj). "Listele... evet sil" gibi iki-turn akışlar
+  doğal çalışır. `/reset` (veya `/yeni`, `/clear`) komutu history'yi sıfırlar.
+- **Context-aware matcher** — kısa girdiler ("evet sil") için önceki turn'lerin
+  context'i match'i kuvvetlendirir; skill bağlamı turn'lar arası korunur.
+- **Brace-balanced parser** — `find ... -exec rm {} \;` gibi nested `{}`
+  içeren komut argümanları artık doğru parse edilir.
+- **Dangerous flag detection** (mini flag-level whitelist):
+  - `find -delete`, `find -exec`, `find -execdir` → shell_unsafe (önce safe görünüyordu)
+  - `sed -i`, `sed --in-place` → shell_unsafe
 - **Yeni built-in skill: `system-info`** — uname + uptime + df çıktısını
   birleştirip Türkçe sistem raporu sunar. Permissions: `[shell_safe, system_info]`
 - **Yeni built-in skill: `delete-old-logs`** — POC senaryosu: N günden eski log
@@ -22,7 +34,17 @@ formatı, [SemVer](https://semver.org) sürümleme.
   - Bilinmeyen permission uyarısı
   - Önerilen alan + body bölümü uyarıları
 - `ajanox skill migrate` — v1.0 için stub (henüz aktif değil)
-- 13 yeni unit test (toplam 63)
+- **+26 yeni unit test** (toplam 76)
+
+### Değişti
+- Test sayısı: 50 → 76
+- Skill sayısı (built-in): 3 → 5
+
+### Bilinen sınırlamalar v0.2.1'de
+- Model bazen "echo 'silindi'" gibi yalancı çıktı verebilir (halüsinasyon);
+  güvenlik açısından zararsız (gerçek aksiyon yapılmaz) ama UX kafa karışıklığı.
+  v0.3'te tool-call verification katmanı eklenecek.
+- pyproject.toml version 0.1.0 idi (v0.2.0'da unutulmuş), bu sürümde 0.2.1'e çekildi.
 
 ## [0.2.0] - 2026-05-20
 

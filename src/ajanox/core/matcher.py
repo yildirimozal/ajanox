@@ -79,23 +79,36 @@ def _overlap_score(user_tokens: set[str], skill_tokens: set[str]) -> int:
     return score
 
 
-def find_best_match(user_input: str, catalog: list[Skill]) -> tuple[Skill | None, int]:
+def find_best_match(
+    user_input: str,
+    catalog: list[Skill],
+    context: str = "",
+) -> tuple[Skill | None, int]:
     """Kullanıcı girdisine en uygun skill'i (varsa) ve overlap skorunu döner.
 
+    Args:
+        user_input: bu turdaki kullanıcı mesajı
+        catalog: yüklü skill'ler
+        context: önceki turn'lerden conversation context (opsiyonel).
+            Multi-turn senaryoda "evet sil" gibi kısa girdilerde önceki
+            turn'lerde geçen skill'in adı/desc'i match'i kuvvetlendirir.
+
     Eşik: en az 1 kelime kesişimi. Hiçbiri eşleşmezse (None, 0).
-    Birden fazla aday varsa en yüksek skoru kazanır.
     """
     if not catalog:
         return None, 0
 
     user_tokens = _tokenize(user_input)
-    if not user_tokens:
+    # Context tokenları daha düşük ağırlıkta sayılır ama yine de score'a katkı
+    context_tokens = _tokenize(context)
+    combined = user_tokens | context_tokens
+    if not combined:
         return None, 0
 
     best_skill: Skill | None = None
     best_score = 0
     for skill in catalog:
-        score = _overlap_score(user_tokens, _skill_keywords(skill))
+        score = _overlap_score(combined, _skill_keywords(skill))
         if score > best_score:
             best_score = score
             best_skill = skill
