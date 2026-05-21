@@ -114,7 +114,10 @@ OLLAMA_TIMEOUT = float(os.environ.get("AJANOX_OLLAMA_TIMEOUT", "60"))
 
 
 def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> dict:
-    """Ollama chat endpoint'ine istek at. Tool parametresi YOLLAMA."""
+    """Ollama chat — non-streaming (tek istek, tam cevap).
+
+    Tool çağrı parsing'i için kullanılır (full output gerek).
+    """
     payload = json.dumps(
         {
             "model": model,
@@ -130,6 +133,56 @@ def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> dict:
     )
     with urllib.request.urlopen(request, timeout=OLLAMA_TIMEOUT) as response:
         return json.loads(response.read())["message"]
+
+
+def chat_stream(messages: list[dict], model: str = DEFAULT_MODEL, on_chunk=None) -> dict:
+    """Ollama chat — streaming (token-by-token).
+
+    Her chunk için on_chunk(content_delta: str) çağrılır. Final mesaj
+    biriktirilmiş halde dönülür. on_chunk None ise normal chat() gibi davranır.
+
+    Perceived latency'i ciddi düşürür: 14B modelde tam cevap 30s ise,
+    ilk token ~2s'de gelir → kullanıcı donmuş hissetmez.
+    """
+    if on_chunk is None:
+        return chat(messages, model)
+
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "options": {"temperature": DEFAULT_TEMPERATURE},
+        }
+    ).encode()
+    request = urllib.request.Request(
+        OLLAMA_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    full_content = ""
+    last_message: dict = {"role": "assistant", "content": ""}
+
+    with urllib.request.urlopen(request, timeout=OLLAMA_TIMEOUT) as response:
+        for line in response:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                chunk = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            msg = chunk.get("message") or {}
+            delta = msg.get("content", "")
+            if delta:
+                full_content += delta
+                on_chunk(delta)
+            if chunk.get("done"):
+                last_message = {"role": "assistant", "content": full_content}
+                break
+
+    return last_message
 
 
 def run_agent(
@@ -203,7 +256,19 @@ def run_agent(
     final_response = ""
 
     for _ in range(max_iter):
-        msg = chat(messages, model=model)
+        # Streaming chat: chunk'ları UI'a yolla. Tool call algılanırsa iptal
+        # event'i ile UI streaming kabarcığını siler ve normal akışa döner.
+        # Bu, perceived latency'i ciddi düşürür (ChatGPT pattern'i).
+        chunk_emitted = False
+
+        def _on_chunk(delta: str) -> None:
+            nonlocal chunk_emitted
+            if on_event is None:
+                return
+            chunk_emitted = True
+            emit({"type": "assistant_chunk", "delta": delta})
+
+        msg = chat_stream(messages, model=model, on_chunk=_on_chunk)
         content = (msg.get("content") or "").strip()
         messages.append({"role": "assistant", "content": content})
 
@@ -213,8 +278,15 @@ def run_agent(
             print(
                 f"\nAjanox: {final_response}\n" if final_response else "\n(Boş cevap)\n"
             )
+            # Streaming yapıldıysa UI'daki kabarcık zaten dolu — final event ile
+            # 'kapanış' yapar (kind: assistant_streaming → assistant). Streaming
+            # yapılmadıysa (CLI mode) normal mesaj olarak gösterir.
             emit({"type": "final", "content": final_response})
             return _trimmed(history, user_input, final_response, history_limit)
+
+        # Tool call var — streaming ile UI'da gösterilen JSON içeriğini iptal et
+        if chunk_emitted:
+            emit({"type": "assistant_chunk_cancel"})
 
         name = tool_call.get("name", "")
         args = tool_call.get("arguments", {}) or {}

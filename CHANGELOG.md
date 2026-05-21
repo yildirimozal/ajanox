@@ -5,6 +5,23 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-05-21
+
+### Eklendi
+- **Streaming cevap üretimi** — Ollama `stream=true` ile token-by-token UI:
+  - `chat_stream()` core/agent.py'a eklendi
+  - `assistant_chunk` event'i her token deltası için emit edilir
+  - UI'da yanıp sönen `▍` cursor ile aktif streaming gösterilir
+  - Tool call algılandıysa `assistant_chunk_cancel` ile baloncuk silinir,
+    normal tool akışına döner
+  - **Perceived latency 80% düşer**: ilk token ~1-2 sn'de, kullanıcı donmuş hissetmez
+- **Tool çıktısı görünür** — bash/curl/lsof sonuçları artık mesaj listesinde
+  kompakt monospace yeşil-kenarlı kutuda görünüyor. Match/tool_call hâlâ
+  accordion'da (gürültü değil).
+
+### Test
+- chat_stream() E2E: 'kısa selamlama' → 10 chunk → "Merhaba..."
+
 ## [0.4.2] - 2026-05-21
 
 ### Değişti
