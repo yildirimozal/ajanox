@@ -33,7 +33,7 @@ DEFAULT_TEMPERATURE = 0.2
 DEFAULT_HISTORY_LIMIT = 10  # son N user/assistant mesajı (5 turn) — sliding window
 
 
-def check_ollama_health(model: str | None = None, timeout: float = 3.0) -> tuple[bool, str]:
+def check_ollama_health(model: str | None = None, timeout: float = 5.0) -> tuple[bool, str]:
     """Ollama erişilebilir mi, gerekli model yüklü mü? (ok, mesaj) döner.
 
     Hata durumlarında kullanıcıya net, uygulanabilir talimatlar verir.

@@ -95,13 +95,51 @@
             padding: 0 12px;
         }
         .status {
-            font-size: 11px;
+            font-size: 12px;
             color: var(--muted);
-            padding: 4px 16px;
+            padding: 6px 16px;
             background: var(--panel);
             border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
         }
         .status.thinking { color: var(--accent); }
+        .status .activity { font-family: monospace; font-size: 11px; opacity: 0.75; }
+        .status .timer { font-variant-numeric: tabular-nums; }
+
+        .details {
+            margin: 4px 0 12px 0;
+            font-size: 12px;
+        }
+        .details summary {
+            cursor: pointer;
+            color: var(--muted);
+            padding: 4px 8px;
+            user-select: none;
+            list-style: none;
+        }
+        .details summary::-webkit-details-marker { display: none; }
+        .details summary::before { content: "▸ "; }
+        .details[open] > summary::before { content: "▾ "; }
+        .details .event-list {
+            margin: 6px 0 0 16px;
+            border-left: 2px solid var(--border);
+            padding-left: 12px;
+        }
+        .details .event-row {
+            font-family: monospace;
+            font-size: 11px;
+            margin: 4px 0;
+            color: var(--muted);
+            word-break: break-all;
+        }
+        .details .event-row .ev-type {
+            display: inline-block;
+            min-width: 70px;
+            color: var(--accent);
+        }
 
         .empty { color: var(--muted); text-align: center; margin-top: 80px; }
         .empty h2 { font-size: 22px; margin-bottom: 12px; color: var(--text); }
@@ -187,14 +225,29 @@
                 <h2>Türkçe yaz, Ajanox çalışsın.</h2>
                 <p>"İstanbul'da hava nasıl?" • "Bilgisayarın durumu nasıl?" • "Downloads'taki en büyük dosyaları bul"</p>
             </div>
-            <div v-for="(m, i) in messages" :key="i" :class="['msg', m.kind]">
-                <div class="role">{{ m.role }}</div>
-                <pre v-if="m.kind === 'tool' || m.kind === 'match' || m.kind === 'denied'">{{ m.content }}</pre>
-                <div v-else>{{ m.content }}</div>
-            </div>
+            <template v-for="(m, i) in messages" :key="i">
+                <div :class="['msg', m.kind]">
+                    <div class="role">{{ m.role }}</div>
+                    <pre v-if="m.kind === 'denied' || m.kind === 'warn'">{{ m.content }}</pre>
+                    <div v-else style="white-space: pre-wrap;">{{ m.content }}</div>
+                </div>
+                <details v-if="m.events && m.events.length" class="details">
+                    <summary>Detaylar ({{ m.events.length }} adım)</summary>
+                    <div class="event-list">
+                        <div v-for="(ev, j) in m.events" :key="j" class="event-row">
+                            <span class="ev-type">{{ ev.label }}</span>
+                            {{ ev.text }}
+                        </div>
+                    </div>
+                </details>
+            </template>
         </div>
 
-        <div v-if="status" :class="['status', thinking ? 'thinking' : '']">{{ status }}</div>
+        <div :class="['status', thinking ? 'thinking' : '']">
+            <span>{{ status }}</span>
+            <span v-if="thinking && activity" class="activity">{{ activity }}</span>
+            <span v-if="thinking" class="timer">{{ elapsed }}s</span>
+        </div>
 
         <div class="composer">
             <button class="reset" @click="resetConversation" :disabled="thinking">/reset</button>
@@ -247,7 +300,7 @@
 </div>
 
 <script type="module">
-import { createApp, ref, reactive, nextTick, onMounted } from 'https://unpkg.com/vue@3.5.0/dist/vue.esm-browser.prod.js';
+import { createApp, ref, reactive, nextTick, onMounted, onUnmounted } from 'https://unpkg.com/vue@3.5.0/dist/vue.esm-browser.prod.js';
 
 createApp({
     setup() {
@@ -256,10 +309,27 @@ createApp({
         const draft = ref('');
         const status = ref('Bağlanılıyor…');
         const thinking = ref(false);
+        const activity = ref('');     // status bar'da gösterilen current step
+        const elapsed = ref(0);       // saniye sayacı
         const messagesEl = ref(null);
         const textareaEl = ref(null);
         const approvalRequest = ref(null);
         let ws = null;
+        let currentEvents = [];        // turn boyunca biriken event log
+        let turnStart = 0;
+        let timerId = null;
+
+        const startTimer = () => {
+            turnStart = Date.now();
+            elapsed.value = 0;
+            stopTimer();
+            timerId = setInterval(() => {
+                elapsed.value = Math.floor((Date.now() - turnStart) / 1000);
+            }, 1000);
+        };
+        const stopTimer = () => {
+            if (timerId) { clearInterval(timerId); timerId = null; }
+        };
 
         const scrollDown = async () => {
             await nextTick();
@@ -290,42 +360,58 @@ createApp({
             };
         };
 
+        const trim = (s, n) => (s && s.length > n) ? s.slice(0, n) + '…' : (s || '');
+        const argPreview = (args) => {
+            if (!args) return '';
+            if (typeof args === 'string') return args;
+            if (args.command) return args.command;
+            if (args.path) return args.path;
+            if (args.directory) return args.directory;
+            return JSON.stringify(args);
+        };
+
         const handleEvent = (event) => {
             switch (event.type) {
                 case 'match':
-                    messages.value.push({
-                        kind: 'match',
-                        role: `match → ${event.skill}`,
-                        content: `score=${event.score}`,
+                    activity.value = `match: ${event.skill}`;
+                    currentEvents.push({
+                        label: 'match',
+                        text: `${event.skill} (score=${event.score})`,
                     });
                     break;
                 case 'tool_call':
-                    messages.value.push({
-                        kind: 'tool',
-                        role: `tool: ${event.tool}`,
-                        content: typeof event.args === 'object' ? JSON.stringify(event.args, null, 2) : String(event.args),
+                    activity.value = `${event.tool}: ${trim(argPreview(event.args), 60)}`;
+                    currentEvents.push({
+                        label: event.tool,
+                        text: argPreview(event.args),
                     });
                     break;
                 case 'tool_result':
-                    messages.value.push({
-                        kind: 'tool',
-                        role: 'output',
-                        content: event.output.slice(0, 500),
+                    activity.value = 'çıktı geldi, sentezleniyor…';
+                    currentEvents.push({
+                        label: 'output',
+                        text: trim(event.output, 200).replace(/\n/g, ' '),
                     });
                     break;
                 case 'denied':
+                    // Görünür mesaj — güvenlik kullanıcıya gösterilmeli
                     messages.value.push({
                         kind: 'denied',
                         role: 'permission denied',
                         content: `${event.skill} → ${event.tool}`,
                     });
+                    currentEvents.push({
+                        label: 'denied',
+                        text: `${event.skill} → ${event.tool}`,
+                    });
                     break;
                 case 'warn':
                     messages.value.push({
-                        kind: 'denied',
-                        role: 'warn',
+                        kind: 'warn',
+                        role: 'uyarı',
                         content: event.message,
                     });
+                    currentEvents.push({ label: 'warn', text: event.message });
                     break;
                 case 'final':
                     if (event.content) {
@@ -333,12 +419,17 @@ createApp({
                             kind: 'assistant',
                             role: 'Ajanox',
                             content: event.content,
+                            events: currentEvents.length ? [...currentEvents] : null,
                         });
                     }
+                    currentEvents = [];
+                    activity.value = '';
                     break;
                 case 'done':
                     thinking.value = false;
-                    status.value = 'Hazır';
+                    activity.value = '';
+                    status.value = elapsed.value > 0 ? `Hazır (${elapsed.value}s)` : 'Hazır';
+                    stopTimer();
                     break;
                 case 'error':
                     messages.value.push({
@@ -346,10 +437,14 @@ createApp({
                         role: 'hata',
                         content: event.message,
                     });
+                    activity.value = '';
                     thinking.value = false;
+                    stopTimer();
                     break;
                 case 'reset_ok':
                     messages.value = [];
+                    currentEvents = [];
+                    activity.value = '';
                     status.value = 'Konuşma sıfırlandı';
                     approvalRequest.value = null;
                     break;
@@ -362,7 +457,7 @@ createApp({
                         risk: event.risk,
                         allow_session: event.allow_session,
                     };
-                    status.value = 'Güvenlik onayı bekleniyor…';
+                    activity.value = 'güvenlik onayı bekleniyor';
                     break;
             }
             scrollDown();
@@ -375,13 +470,21 @@ createApp({
                 request_id: approvalRequest.value.request_id,
                 decision: decision,
             }));
-            messages.value.push({
-                kind: decision === 'no' ? 'denied' : 'tool',
-                role: `onay: ${decision}`,
-                content: `${approvalRequest.value.tool} → ${decision === 'no' ? 'reddedildi' : 'izinli'}`,
+            // Onay kararını event log'a kaydet (visible mesaj DEĞİL, accordion'da)
+            currentEvents.push({
+                label: 'approval',
+                text: `${approvalRequest.value.tool}: ${decision}`,
             });
+            // 'no' kullanıcı eylemi olarak görünür kalır
+            if (decision === 'no') {
+                messages.value.push({
+                    kind: 'denied',
+                    role: 'iptal',
+                    content: `${approvalRequest.value.tool} reddedildi`,
+                });
+            }
             approvalRequest.value = null;
-            status.value = 'Düşünüyor…';
+            activity.value = 'düşünüyor';
             scrollDown();
         };
 
@@ -393,13 +496,21 @@ createApp({
             draft.value = '';
             thinking.value = true;
             status.value = 'Düşünüyor…';
+            activity.value = 'başlıyor';
+            currentEvents = [];
+            startTimer();
             scrollDown();
         };
 
         const resetConversation = () => {
             if (thinking.value) return;
             ws.send(JSON.stringify({ type: 'reset' }));
+            stopTimer();
+            elapsed.value = 0;
+            activity.value = '';
         };
+
+        onUnmounted(() => stopTimer());
 
         onMounted(async () => {
             await fetchInfo();
@@ -408,6 +519,7 @@ createApp({
 
         return {
             messages, info, draft, status, thinking,
+            activity, elapsed,
             messagesEl, textareaEl,
             approvalRequest,
             send, resetConversation, respondApproval,
