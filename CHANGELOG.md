@@ -5,6 +5,26 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-21
+
+### Eklendi
+- **🛒 Skill Marketplace UI** — tarayıcıdan görsel marketplace:
+  - Sidebar'da "🛒 Marketplace" butonu → tam ekran overlay açılır
+  - 900px geniş panel, kapatılabilir, blur'lu arka plan
+  - Tüm registry'lerden skill listesi (responsive grid, 260px+ kartlar)
+  - **Live search** — `mp-search` input'una yazdıkça filtrele
+  - Her kartta: ikon + name + registry + Yükle/Kaldır butonu
+  - **"✓ Yüklü"** badge yüklü skill'lerde, yanında "Kaldır" butonu
+  - Install esnasında "Yükleniyor…" disabled state, sonra "✓ yüklendi" 2s göster
+  - Hata durumunda kartta inline hata mesajı
+  - Install/remove sonrası sol skill paneli otomatik tazelenir
+- 4 yeni HTTP endpoint (`/api/marketplace/*`):
+  - `GET /api/marketplace/skills` — registry'lerden skill listesi (5 dk cache)
+  - `GET /api/marketplace/skill/{registry}/{name}` — manifest detayı
+  - `POST /api/marketplace/install` — body `{registry, name}`, yasak permission → 403
+  - `POST /api/marketplace/remove` — body `{name}`, ~/.ajanox/skills/'tan siler
+- Marketplace cache: 5 dakika TTL, install/remove sonrası invalidate
+
 ## [0.4.4] - 2026-05-21
 
 ### Eklendi

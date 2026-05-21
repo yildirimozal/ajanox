@@ -27,7 +27,7 @@ import uuid
 from pathlib import Path
 
 try:
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
     import uvicorn
@@ -38,8 +38,10 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 from ..cli.shell import _collect_skills
-from ..core import approval
+from ..core import approval, registry as reg_mod
 from ..core.agent import DEFAULT_MODEL, run_agent
+from ..core.permissions import PERMISSION_RISK, validate_permissions
+from ..core.skill_loader import parse_frontmatter
 from .. import __version__
 
 
@@ -138,6 +140,144 @@ class WebApprovalBroker:
         self._responses[request_id] = decision
         self._pending.pop(request_id).set()
         return True
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Marketplace HTTP endpoints
+# ─────────────────────────────────────────────────────────────────────
+
+# Cache: registry skill listeleri (GitHub API call'larını azaltmak için)
+_marketplace_cache: dict = {"skills": None, "ts": 0.0}
+_MARKETPLACE_CACHE_TTL = 300  # 5 dakika
+
+
+def _user_installed_names() -> set[str]:
+    """~/.ajanox/skills/ altında yüklü kullanıcı skill isimleri."""
+    home = Path(os.environ.get("AJANOX_HOME", str(Path.home() / ".ajanox")))
+    skills_dir = home / "skills"
+    if not skills_dir.exists():
+        return set()
+    return {p.name for p in skills_dir.iterdir() if (p / "SKILL.md").exists()}
+
+
+@app.get("/api/marketplace/skills")
+async def marketplace_skills(refresh: bool = False) -> dict:
+    """Tüm kayıtlı registry'lerdeki skill isimlerini listele (cache'li)."""
+    import time
+    now = time.time()
+    if (
+        not refresh
+        and _marketplace_cache["skills"]
+        and (now - _marketplace_cache["ts"]) < _MARKETPLACE_CACHE_TTL
+    ):
+        installed = _user_installed_names()
+        for s in _marketplace_cache["skills"]:
+            s["installed"] = s["name"] in installed
+        return {"skills": _marketplace_cache["skills"]}
+
+    registries = reg_mod.load_registries()
+    installed = _user_installed_names()
+    out: list[dict] = []
+    for r in registries:
+        try:
+            names = reg_mod.list_registry_skills(r)
+        except ValueError:
+            continue
+        for name in names:
+            out.append({
+                "name": name,
+                "registry": r.name,
+                "registry_url": r.url,
+                "installed": name in installed,
+            })
+    _marketplace_cache["skills"] = out
+    _marketplace_cache["ts"] = now
+    return {"skills": out}
+
+
+@app.get("/api/marketplace/skill/{registry_name}/{skill_name}")
+async def marketplace_skill_detail(registry_name: str, skill_name: str) -> dict:
+    """Tek bir skill'in manifest detayını döner (preview için)."""
+    registries = reg_mod.load_registries()
+    target = next((r for r in registries if r.name == registry_name), None)
+    if target is None:
+        raise HTTPException(404, f"Registry yok: {registry_name}")
+    try:
+        content = reg_mod.fetch_skill_md(target.skill_md_url(skill_name))
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    fm = parse_frontmatter(content) or {}
+    perms = fm.get("permissions") or []
+    if not isinstance(perms, list):
+        perms = []
+    valid, unknown, forbidden = validate_permissions([str(p) for p in perms])
+
+    return {
+        "name": str(fm.get("name", skill_name)),
+        "version": str(fm.get("version", "0.0.0")),
+        "description": str(fm.get("description", "")),
+        "icon": str(fm.get("icon", "")),
+        "example_prompt": str(fm.get("example_prompt", "")),
+        "permissions": [
+            {
+                "name": p,
+                "risk": (PERMISSION_RISK[p].value if p in PERMISSION_RISK else "unknown"),
+            }
+            for p in perms
+        ],
+        "forbidden": forbidden,
+        "unknown_permissions": unknown,
+        "raw_url": target.skill_md_url(skill_name),
+        "registry": registry_name,
+    }
+
+
+@app.post("/api/marketplace/install")
+async def marketplace_install(body: dict = Body(...)) -> dict:
+    """Skill'i yükle. body: {'registry': 'miniagent', 'name': 'open-ports'}"""
+    registry_name = body.get("registry", "")
+    skill_name = body.get("name", "")
+    if not registry_name or not skill_name:
+        raise HTTPException(400, "registry ve name gerekli")
+
+    registries = reg_mod.load_registries()
+    target = next((r for r in registries if r.name == registry_name), None)
+    if target is None:
+        raise HTTPException(404, f"Registry yok: {registry_name}")
+
+    try:
+        content = reg_mod.fetch_skill_md(target.skill_md_url(skill_name))
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    fm = parse_frontmatter(content) or {}
+    perms = fm.get("permissions") or []
+    if not isinstance(perms, list):
+        perms = []
+    _, _, forbidden = validate_permissions([str(p) for p in perms])
+    if forbidden:
+        raise HTTPException(
+            403,
+            f"Yasak permission içeriyor: {', '.join(forbidden)} — yüklenmedi.",
+        )
+
+    final_name = str(fm.get("name") or skill_name).strip()
+    path = reg_mod.install_skill_md(final_name, content)
+    # Cache'i invalidate et
+    _marketplace_cache["skills"] = None
+    return {"ok": True, "name": final_name, "path": str(path)}
+
+
+@app.post("/api/marketplace/remove")
+async def marketplace_remove(body: dict = Body(...)) -> dict:
+    """Kullanıcı skill'ini kaldır. body: {'name': 'open-ports'}"""
+    name = body.get("name", "")
+    if not name:
+        raise HTTPException(400, "name gerekli")
+    removed = reg_mod.remove_user_skill(name)
+    _marketplace_cache["skills"] = None
+    return {"ok": removed, "name": name}
 
 
 @app.websocket("/ws")
