@@ -11,8 +11,21 @@ from ..core.skill_loader import Skill, load_skill_catalog
 
 
 def _builtin_skills_dir() -> Path:
-    """Paket içi (pip install ile gelen) skill'ler — site-packages/ajanox/builtin_skills."""
-    return Path(__file__).resolve().parent.parent / "builtin_skills"
+    """Paket içi skill'ler.
+
+    İki kurulum modu desteklenir:
+      1. Wheel install (`pip install ajanox`): force-include ile
+         site-packages/ajanox/builtin_skills/ altında bulunur
+      2. Dev/editable install (`pip install -e .`): yukarıdaki yol yok;
+         repo root'taki skills/ klasörüne fallback yap
+    """
+    pkg_dir = Path(__file__).resolve().parent.parent  # site-packages/ajanox veya src/ajanox
+    wheel_path = pkg_dir / "builtin_skills"
+    if wheel_path.exists():
+        return wheel_path
+    # Dev fallback: src/ajanox → src → repo_root → repo_root/skills
+    dev_path = pkg_dir.parent.parent / "skills"
+    return dev_path
 
 
 def _project_skills_dir() -> Path:

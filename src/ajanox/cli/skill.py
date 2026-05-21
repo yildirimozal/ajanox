@@ -122,8 +122,17 @@ def _project_skills_dir() -> Path:
 
 
 def _builtin_skills_dir() -> Path:
-    """Pip install ile gelen yerleşik skill'ler."""
-    return Path(__file__).resolve().parent.parent / "builtin_skills"
+    """Paket içi yerleşik skill'ler.
+
+    Wheel install: site-packages/ajanox/builtin_skills/
+    Dev install: repo root'un skills/ klasörü (fallback).
+    """
+    pkg_dir = Path(__file__).resolve().parent.parent
+    wheel_path = pkg_dir / "builtin_skills"
+    if wheel_path.exists():
+        return wheel_path
+    dev_path = pkg_dir.parent.parent / "skills"
+    return dev_path
 
 
 def _boilerplate(name: str, description: str) -> str:

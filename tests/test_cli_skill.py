@@ -11,9 +11,12 @@ from ajanox.cli.skill import run
 
 @pytest.fixture
 def isolated_skills_dir(tmp_path, monkeypatch):
-    """skills/ dizinini tmp'a yönlendir."""
+    """skills/ dizinini tmp'a yönlendir + builtin path'i de izole et."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("AJANOX_HOME", str(tmp_path / ".ajanox"))
+    # Dev fallback repo root'taki skills'i bulmasın — tmp_path altında yok-olan yola yönlendir
+    nonexistent = tmp_path / "_no_builtin"
+    monkeypatch.setattr("ajanox.cli.skill._builtin_skills_dir", lambda: nonexistent)
     return tmp_path
 
 

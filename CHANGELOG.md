@@ -5,6 +5,21 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-21
+
+### Düzeltildi
+- **KRİTİK**: Dev install (`pip install -e .`) modunda `_builtin_skills_dir()` paket
+  içindeki `builtin_skills/` klasörünü arıyordu (sadece wheel build'de oluşur).
+  Bu mod hiç skill yüklemiyordu → matcher boş katalogda match aramıyor → "system"
+  pseudo-skill devreye giriyor → `curl` shell_unsafe → permission denied →
+  **model halüsinasyon yapıyordu** ("API anahtarı engellendi" gibi yalanlar).
+- Dev install için fallback: repo root'taki `skills/` klasörü kullanılır.
+- Bu fix `cli/shell.py` ve `cli/skill.py`'da uygulandı.
+
+### Etkileyen senaryolar
+- `pip install -e .` ile geliştiren kişiler (skill 0)
+- `pip install ajanox` yapan kullanıcılar etkilenmedi (wheel'de builtin_skills içeride)
+
 ## [0.3.2] - 2026-05-21
 
 ### Eklendi
