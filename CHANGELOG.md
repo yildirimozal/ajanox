@@ -5,6 +5,24 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-05-21
+
+### Eklendi
+- **`check_ollama_health()` fonksiyonu** (`core/agent.py`) — Ollama erişilebilir mi,
+  gerekli model yüklü mü kontrol eder; hata durumunda uygulanabilir talimat verir
+- **CLI başlangıç health check'i** — `ajanox` ve `ajanox web` başlarken Ollama'yı
+  kontrol eder, eksikse net hata + kurulum komutları gösterir (sessiz crash yok)
+- **WebSocket'tan açık Ollama hatası** — runtime'da Ollama düşerse browser'a "Ollama'ya
+  bağlanılamıyor: ollama serve çalıştır" mesajı gider
+- **README'de prominent ön gereksinim bölümü** — Ollama + Qwen 2.5 14B niçin, nasıl,
+  troubleshooting tablosu, düşük RAM'li makineler için `qwen2.5:7b` fallback talimatı
+
+### Düzeltildi
+- `pip install ajanox` → `ajanox` çalıştırılınca Ollama yoksa cryptic urllib traceback
+  alıyordu. Artık tek satır net hata + kurulum komutu.
+- Web dashboard'da Ollama runtime'da düşerse "Skill yükleniyor…" sonsuza dek kalıyordu.
+  Artık modal/error gösterir.
+
 ## [0.3.1] - 2026-05-20
 
 ### Eklendi

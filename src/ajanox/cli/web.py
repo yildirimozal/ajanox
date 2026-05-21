@@ -42,12 +42,22 @@ def run(args: list[str]) -> int:
         print(f"  ({exc})", file=sys.stderr)
         return 1
 
+    # Ön gereksinim kontrolü — Ollama + model
+    from ..core.agent import DEFAULT_MODEL, check_ollama_health
+    model = os.environ.get("AJANOX_MODEL", DEFAULT_MODEL)
+    ok, health_msg = check_ollama_health(model)
+    print(health_msg)
+    if not ok:
+        print(
+            "\n⚠️  Web dashboard başlatılmadı. Ollama + model hazır olduktan\n"
+            "    sonra `ajanox web` komutunu tekrar çalıştır.",
+            file=sys.stderr,
+        )
+        return 1
+
     url = f"http://{ns.host}:{ns.port}"
-    print(f"Ajanox web dashboard başlatılıyor: {url}")
-    print(f"Model: {os.environ.get('AJANOX_MODEL', 'qwen2.5:14b')}")
-    print()
-    print("Not: v0.3.0'da yüksek risk komutlar için runtime onay HALA bu terminalde")
-    print("görünür. Web'den yüksek risk skill çalıştırırsanız terminali takip edin.")
+    print(f"\nAjanox web dashboard başlatılıyor: {url}")
+    print(f"Model: {model}")
     print()
 
     if not ns.no_browser:

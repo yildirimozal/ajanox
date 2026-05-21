@@ -26,10 +26,51 @@ DEFAULT_SYSTEM_SKILL_NAME = "system"
 
 
 OLLAMA_URL = os.environ.get("AJANOX_OLLAMA_URL", "http://localhost:11434/api/chat")
+OLLAMA_BASE = OLLAMA_URL.rsplit("/api/", 1)[0] if "/api/" in OLLAMA_URL else "http://localhost:11434"
 DEFAULT_MODEL = os.environ.get("AJANOX_MODEL", "qwen2.5:14b")
 DEFAULT_MAX_ITER = 8
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_HISTORY_LIMIT = 10  # son N user/assistant mesajı (5 turn) — sliding window
+
+
+def check_ollama_health(model: str | None = None, timeout: float = 3.0) -> tuple[bool, str]:
+    """Ollama erişilebilir mi, gerekli model yüklü mü? (ok, mesaj) döner.
+
+    Hata durumlarında kullanıcıya net, uygulanabilir talimatlar verir.
+    """
+    target_model = model or DEFAULT_MODEL
+    tags_url = f"{OLLAMA_BASE}/api/tags"
+    install_hint = (
+        "  Kurulum:\n"
+        "    macOS:  brew install ollama && ollama serve\n"
+        "    Linux:  curl -fsSL https://ollama.ai/install.sh | sh\n"
+        f"  Model:  ollama pull {target_model}"
+    )
+
+    try:
+        with urllib.request.urlopen(tags_url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.URLError as exc:
+        return False, (
+            f"✗ Ollama'ya bağlanılamıyor ({OLLAMA_BASE}): {getattr(exc, 'reason', exc)}\n"
+            f"  Ollama çalışıyor mu? (Terminal: `ollama serve` veya menübar uygulaması)\n"
+            + install_hint
+        )
+    except Exception as exc:  # noqa: BLE001
+        return False, f"✗ Ollama beklenmedik hata: {exc}\n" + install_hint
+
+    models = [m.get("name", "") for m in data.get("models", [])]
+    if target_model in models:
+        return True, f"✓ Ollama hazır — {target_model} yüklü"
+
+    # Ollama çalışıyor ama model yok
+    available = ", ".join(sorted(models)) if models else "(hiç model yüklü değil)"
+    return False, (
+        f"✗ Ollama çalışıyor ama '{target_model}' yüklü değil.\n"
+        f"  Mevcut modeller: {available}\n"
+        f"  Yüklemek için: ollama pull {target_model}\n"
+        f"  (Yaklaşık 9 GB indirme, 5-15 dakika alabilir)"
+    )
 
 TOOL_PROTOCOL_PROMPT = """
 === TOOL CALLING PROTOKOLÜ (ZORUNLU) ===

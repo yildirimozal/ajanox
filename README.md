@@ -33,22 +33,58 @@ Ajanox 🔧 delete-old-logs
   3 dosya silindi.
 ```
 
-## 5 dakikada kurulum
+## ⚠️ Ön gereksinim: Ollama + Qwen 2.5 14B
+
+Ajanox **LLM'i kendi makinende çalıştırır** — bu yüzden iki şey gerekli:
+
+| | Ne | Niçin |
+|---|---|---|
+| **Ollama** | Yerel LLM runtime | Ajanox HTTP üzerinden konuşur (`localhost:11434`) |
+| **Qwen 2.5 14B** | Türkçe + tool-calling odaklı model | Ajanox'un beyni; ~9 GB indirme, ~10 GB RAM gerekir |
+
+### Kurulum (5 dakika)
 
 ```bash
-# 1. Ollama + model (~9 GB, bir kere)
-brew install ollama && ollama pull qwen2.5:14b   # macOS
-# (Linux: curl -fsSL https://ollama.ai/install.sh | sh && ollama pull qwen2.5:14b)
+# 1. Ollama
+brew install ollama                                    # macOS
+# Linux:
+curl -fsSL https://ollama.ai/install.sh | sh
 
-# 2. Ajanox
+# 2. Ollama'yı çalıştır (arka planda kalmalı)
+ollama serve &                                         # veya menübar uygulaması
+
+# 3. Modeli indir (~9 GB, 5-15 dakika)
+ollama pull qwen2.5:14b
+
+# 4. Ajanox kur
 pip install 'ajanox[web]'
 
-# 3. Başlat
+# 5. Başlat
 ajanox          # terminal shell
 ajanox web      # tarayıcı dashboard — http://localhost:8765
 ```
 
+> Ajanox başlangıçta otomatik **health check** yapar — Ollama veya model
+> eksikse net hata mesajı ve uygulanabilir talimat gösterir.
+
+### Daha az RAM'li makinelerde (≤ 8 GB)
+
+```bash
+AJANOX_MODEL=qwen2.5:7b ajanox      # daha küçük model (~5 GB)
+ollama pull qwen2.5:7b
+```
+Not: 7B model tool-calling'de %20-50 daha az tutarlı. 14B kullanım için 16 GB+ RAM önerilir.
+
 İlk komutunu yaz: `İstanbul'da hava nasıl?` veya `Bilgisayarın durumu nasıl?`
+
+### Sorun mu çıktı?
+
+| Hata | Çözüm |
+|---|---|
+| `Ollama'ya bağlanılamıyor` | `ollama serve` çalıştır veya menübar uygulamasını aç |
+| `'qwen2.5:14b' yüklü değil` | `ollama pull qwen2.5:14b` |
+| `pip install 'ajanox[web]'` zsh hata | Tırnak şart (`[web]`'i shell glob sanıyor) |
+| Web dashboard'da "Skill yükleniyor…" hiç bitmiyor | Server'ı kontrol et — terminal'de `ajanox web` çalışıyor olmalı |
 
 ## Yerleşik skill'ler (v0.3.1)
 

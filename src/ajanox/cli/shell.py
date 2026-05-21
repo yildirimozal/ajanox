@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .. import __version__
-from ..core.agent import DEFAULT_MODEL, run_agent
+from ..core.agent import DEFAULT_MODEL, check_ollama_health, run_agent
 from ..core.skill_loader import Skill, load_skill_catalog
 
 
@@ -54,6 +54,17 @@ def run() -> int:
     model = os.environ.get("AJANOX_MODEL", DEFAULT_MODEL)
 
     print(f"Ajanox v{__version__} — model: {model}")
+
+    # Ön gereksinim kontrolü — Ollama + model
+    ok, health_msg = check_ollama_health(model)
+    print(health_msg)
+    if not ok:
+        print(
+            "\n⚠️  Ajanox şu anda çalışamaz. Yukarıdaki adımları tamamlayıp\n"
+            "    `ajanox` komutunu tekrar çalıştır."
+        )
+        return 1
+
     print(f"Yüklü skill sayısı: {len(catalog)}")
     for src in sources:
         print(f"  kaynak: {src}")

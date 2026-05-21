@@ -22,6 +22,7 @@ import asyncio
 import os
 import queue
 import threading
+import urllib.error
 import uuid
 from pathlib import Path
 
@@ -179,6 +180,14 @@ async def websocket_endpoint(ws: WebSocket) -> None:
                         model=model,
                         on_event=on_event,
                     )
+                except urllib.error.URLError as exc:
+                    event_q.put({
+                        "type": "error",
+                        "message": (
+                            f"Ollama'ya bağlanılamıyor: {getattr(exc, 'reason', exc)}. "
+                            "Ollama çalışıyor mu? (`ollama serve`)"
+                        ),
+                    })
                 except Exception as exc:  # noqa: BLE001
                     event_q.put({"type": "error", "message": str(exc)})
                 finally:
