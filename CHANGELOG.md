@@ -5,6 +5,20 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-21
+
+### Değişti
+- **Web UI temizliği** — intermediate event'ler (match, tool_call, tool_result)
+  artık mesaj listesinde gözükmüyor:
+  - Sadece kullanıcı + Ajanox final cevabı + güvenlik mesajları (denied/warn) görünür
+  - Status bar'da current activity (`weather: curl wttr.in/...`) + saniye sayacı
+  - Final cevabın altında "Detaylar (N adım) ▸" accordion ile tüm event akışı
+- Default Ollama health-check timeout: 3s → 5s (ilk request bazen yavaş)
+
+### Düzeltildi
+- Health check'in ilk request'te 3s'i aşması durumunda server başlamıyordu.
+  Artık 5s default; `AJANOX_OLLAMA_TIMEOUT` env var ile özelleştirilebilir.
+
 ## [0.4.1] - 2026-05-21
 
 ### Düzeltildi
