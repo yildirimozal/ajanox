@@ -4,6 +4,9 @@ Komutlar:
   init <name> [--user] [--description "..."]   Yeni skill boilerplate üret
   list                                          Yüklü skill'leri listele (sistem + kullanıcı)
   check <path>                                  Bir SKILL.md'nin spec'e uyumunu kontrol et
+  install <spec> [--yes]                        Bir skill'i registry/URL'den yükle
+  remove <name>                                 Yüklü kullanıcı skill'ini kaldır
+  search [query]                                Registry'lerdeki skill'leri listele
   migrate <path>                                v0.x → v1.0 manifest yükseltici (henüz yok)
 """
 
@@ -16,6 +19,7 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+from ..core import registry as reg_mod
 from ..core.permissions import (
     FORBIDDEN_PERMISSIONS,
     PERMISSION_RISK,
@@ -64,6 +68,29 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check = sub.add_parser("check", help="SKILL.md'nin spec'e uyumunu kontrol et")
     p_check.add_argument("path", help="SKILL.md yolu veya skill klasörü")
     p_check.set_defaults(func=_cmd_check)
+
+    p_install = sub.add_parser("install", help="Bir skill'i registry/URL'den yükle")
+    p_install.add_argument(
+        "spec",
+        help="Skill spec: bare-name | user/repo:name | tam GitHub URL",
+    )
+    p_install.add_argument(
+        "--yes", "-y", action="store_true", help="Onaysız yükle (script'ler için)"
+    )
+    p_install.set_defaults(func=_cmd_install)
+
+    p_remove = sub.add_parser("remove", help="Yüklü kullanıcı skill'ini kaldır")
+    p_remove.add_argument("name", help="Skill adı")
+    p_remove.set_defaults(func=_cmd_remove)
+
+    p_search = sub.add_parser("search", help="Registry'lerdeki skill'leri listele")
+    p_search.add_argument(
+        "query",
+        nargs="?",
+        default="",
+        help="Filtre (skill adında geçen)",
+    )
+    p_search.set_defaults(func=_cmd_search)
 
     p_mig = sub.add_parser("migrate", help="v0.x manifest'i v1.0 formatına yükselt")
     p_mig.add_argument("path", nargs="?", default="")
@@ -316,6 +343,134 @@ def _cmd_check(ns: argparse.Namespace) -> int:
             print(f"  - {w}")
 
     return 1 if errors else 0
+
+
+# ============================================================
+# install
+# ============================================================
+def _cmd_install(ns: argparse.Namespace) -> int:
+    try:
+        registries = reg_mod.load_registries()
+        spec = reg_mod.resolve_spec(ns.spec, registries)
+    except ValueError as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+
+    print(f"İndiriliyor: {spec.raw_url}")
+    try:
+        content = reg_mod.fetch_skill_md(spec.raw_url)
+    except ValueError as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+
+    fm = parse_frontmatter(content)
+    if not fm:
+        print("✗ SKILL.md frontmatter parse edilemiyor.", file=sys.stderr)
+        return 1
+
+    skill_name = str(fm.get("name") or spec.name).strip()
+    version = str(fm.get("version", "?"))
+    description = str(fm.get("description", "(yok)"))
+    permissions = fm.get("permissions") or []
+    if not isinstance(permissions, list):
+        permissions = []
+
+    valid, unknown, forbidden = validate_permissions([str(p) for p in permissions])
+    if forbidden:
+        print(
+            f"✗ YASAK permission içeriyor: {', '.join(forbidden)} — yüklenmedi.\n"
+            f"  (Spec C kararı: v0.x'te bu izinler kullanılamaz)",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Manifest preview
+    print()
+    print("┌─ Skill yükleme onayı " + "─" * 36)
+    if spec.registry:
+        print(f"│  Kaynak:   {spec.registry.url} (untrusted)")
+    print(f"│  Skill:    {skill_name} v{version}")
+    print(f"│  Açıklama: {description[:60]}{'…' if len(description) > 60 else ''}")
+    if permissions:
+        print("│  İzinler:")
+        for p in permissions:
+            risk = PERMISSION_RISK.get(str(p))
+            risk_str = f"({risk.value})" if risk else "(BİLİNMİYOR)"
+            marker = (
+                "⚠"
+                if risk and risk.value in ("high", "critical")
+                else "•"
+            )
+            print(f"│    {marker} {str(p):<18} {risk_str}")
+    else:
+        print("│  İzinler: (yok — sadece skill matching, tool yok)")
+    if unknown:
+        print(f"│  ⚠ Bilinmeyen: {', '.join(unknown)}")
+    print("└" + "─" * 60)
+
+    if not ns.yes:
+        try:
+            resp = input("Yükle? [E/h]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 1
+        if resp not in ("", "e", "evet", "y", "yes"):
+            print("İptal edildi.")
+            return 0
+
+    path = reg_mod.install_skill_md(skill_name, content)
+    print(f"✓ Yüklendi: {path}")
+    print(f"  Test: ajanox skill check {path.parent}")
+    return 0
+
+
+# ============================================================
+# remove
+# ============================================================
+def _cmd_remove(ns: argparse.Namespace) -> int:
+    if reg_mod.remove_user_skill(ns.name):
+        print(f"✓ Kaldırıldı: {ns.name}")
+        return 0
+    print(f"✗ Yüklü skill bulunamadı: {ns.name}", file=sys.stderr)
+    print(f"  (`ajanox skill list --source user` ile yüklü skill'leri gör)", file=sys.stderr)
+    return 1
+
+
+# ============================================================
+# search
+# ============================================================
+def _cmd_search(ns: argparse.Namespace) -> int:
+    registries = reg_mod.load_registries()
+    if not registries:
+        print("Hiç registry kayıtlı değil.", file=sys.stderr)
+        return 1
+
+    query = ns.query.lower().strip()
+    total = 0
+    for r in registries:
+        try:
+            skills = reg_mod.list_registry_skills(r)
+        except ValueError as exc:
+            print(f"  ⚠ {r.name}: {exc}", file=sys.stderr)
+            continue
+
+        if query:
+            skills = [s for s in skills if query in s.lower()]
+
+        if not skills:
+            continue
+
+        print(f"\n{r.name} ({r.url}):")
+        for s in skills:
+            print(f"  • {s}")
+            total += 1
+
+    if total == 0:
+        print(f"\n(Hiç sonuç yok{f' — filtre: {query}' if query else ''})")
+    else:
+        print(f"\nToplam: {total} skill")
+        print("Yüklemek için: ajanox skill install <name>")
+    return 0
 
 
 # ============================================================

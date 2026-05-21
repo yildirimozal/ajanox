@@ -5,6 +5,35 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-21
+
+### Eklendi
+- **Skill Marketplace MVP** — GitHub-tabanlı uzak skill yükleme:
+  - `ajanox skill install <spec>` — registry/URL/shorthand'den yükle
+  - `ajanox skill remove <name>` — kullanıcı skill'ini kaldır
+  - `ajanox skill search [query]` — registry'lerdeki skill'leri listele
+- Üç format desteklenir:
+  - **Bare name**: `ajanox skill install open-ports` (default registry'den)
+  - **Shorthand**: `ajanox skill install user/repo:skill-name`
+  - **Tam URL**: `https://github.com/user/repo/tree/branch/skills/name`
+- **Default registry**: `yildirimozal/miniagent` — önceden kayıtlı, 8 skill içeriyor
+  (git-log, ip-location, json-format, open-ports vs.)
+- `~/.ajanox/registries.json` — kayıtlı registry'ler (otomatik oluşur)
+- Yükleme akışı **güvenlik-öncelikli**:
+  - Untrusted kaynak işareti
+  - Yüksek/kritik risk izinler `⚠` ile vurgulanır
+  - `sudo` gibi yasak permission → kurulum REDDEDİLİR
+  - Bilinmeyen izin → uyarı
+  - Default'ta onay sorulur (`--yes` ile script modu)
+- 15 yeni unit test (toplam 95)
+- `core/registry.py` — Registry, SkillSpec, fetch_skill_md, list_registry_skills
+
+### Bilinen sınırlamalar
+- Versioning yok (her zaman latest çekilir) — v0.4.1'de `name@version` formatı eklenecek
+- Registry yönetimi (`add/remove`) — şu an `~/.ajanox/registries.json` elle düzenleniyor
+- Skill signing yok (v1.0+ için)
+- Untrusted bayrağı runtime'da kullanılmıyor — sadece install görünür uyarı
+
 ## [0.3.3] - 2026-05-21
 
 ### Düzeltildi
