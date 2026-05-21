@@ -84,9 +84,26 @@ def test_find_critical_path_safe_location():
     assert enforcer.find_critical_path("cat /tmp/x") is None
 
 
-def test_enforce_default_deny():
-    # Skill declare etmediyse → False
-    assert not enforcer.enforce("test", (), "bash", {"command": "ls"})
+def test_enforce_legacy_mode_grants_with_approval():
+    """Skill declare etmediyse → legacy mode → her tool için runtime onay.
+    auto_approve=True olduğu için True döner (test fixture'da)."""
+    assert enforcer.enforce("test", (), "bash", {"command": "ls"})
+
+
+def test_enforce_legacy_mode_denies_when_user_says_no(monkeypatch):
+    """Legacy mode'da kullanıcı 'hayır' derse → False."""
+    approval.set_auto_approve(False)
+    try:
+        monkeypatch.setattr("builtins.input", lambda *_: "h")
+        assert not enforcer.enforce("legacy-skill", (), "bash", {"command": "rm x"})
+    finally:
+        approval.set_auto_approve(True)
+
+
+def test_enforce_declared_undeclared_perm_denied():
+    """Permission declared ama gerekli tool kategorisi yok → DENY (legacy değil)."""
+    # file_read declare ama rm shell_unsafe gerek → reddet
+    assert not enforcer.enforce("test", ("file_read",), "bash", {"command": "rm x"})
 
 
 def test_enforce_allows_declared_low_risk():

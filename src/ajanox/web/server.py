@@ -131,6 +131,13 @@ class WebApprovalBroker:
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
+    """WebSocket handler.
+
+    Mimari: kullanıcı mesajı geldiğinde agent loop'u BACKGROUND TASK'ta çalıştırırız;
+    böylece main loop receive_json'a geri döner ve client'ın approval_response
+    mesajını alabilir. Aksi takdirde agent thread approval beklerken WS receive
+    yapılamadığından deadlock olur (v0.3.1 → v0.4.0 bug'ı, v0.4.1'de düzeltildi).
+    """
     await ws.accept()
     catalog, _ = _collect_skills()
     model = os.environ.get("AJANOX_MODEL", DEFAULT_MODEL)
@@ -139,6 +146,50 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     loop = asyncio.get_event_loop()
     broker = WebApprovalBroker(ws, loop)
     approval.set_handler(broker.request)
+    send_lock = asyncio.Lock()  # WS send'leri serialize et — paralel task'lardan
+
+    async def safe_send(payload: dict) -> None:
+        async with send_lock:
+            await ws.send_json(payload)
+
+    async def stream_agent_events(user_input: str) -> None:
+        """Agent loop'unu thread'de çalıştır, event'leri WS'e stream et."""
+        nonlocal history
+        event_q: queue.Queue = queue.Queue()
+
+        def on_event(event: dict) -> None:
+            event_q.put(event)
+
+        def runner() -> None:
+            nonlocal history
+            try:
+                history = run_agent(
+                    user_input,
+                    catalog,
+                    history=history,
+                    model=model,
+                    on_event=on_event,
+                )
+            except urllib.error.URLError as exc:
+                event_q.put({
+                    "type": "error",
+                    "message": (
+                        f"Ollama'ya bağlanılamıyor: {getattr(exc, 'reason', exc)}. "
+                        "Ollama çalışıyor mu? (`ollama serve`)"
+                    ),
+                })
+            except Exception as exc:  # noqa: BLE001
+                event_q.put({"type": "error", "message": str(exc)})
+            finally:
+                event_q.put({"type": "done"})
+
+        threading.Thread(target=runner, daemon=True).start()
+
+        while True:
+            event = await loop.run_in_executor(None, event_q.get)
+            await safe_send(event)
+            if event.get("type") == "done":
+                break
 
     try:
         while True:
@@ -148,15 +199,16 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             if msg_type == "reset":
                 history = []
                 approval.reset_session()
-                await ws.send_json({"type": "reset_ok"})
+                await safe_send({"type": "reset_ok"})
                 continue
 
             if msg_type == "approval_response":
+                # Approval'ı resolve et — agent thread bekliyordu, devam edecek
                 broker.resolve(data.get("request_id", ""), data.get("decision", "no"))
                 continue
 
             if msg_type != "user_message":
-                await ws.send_json(
+                await safe_send(
                     {"type": "error", "message": f"Bilinmeyen mesaj tipi: {msg_type}"}
                 )
                 continue
@@ -165,47 +217,13 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             if not user_input:
                 continue
 
-            event_q: queue.Queue = queue.Queue()
-
-            def on_event(event: dict) -> None:
-                event_q.put(event)
-
-            def runner() -> None:
-                nonlocal history
-                try:
-                    history = run_agent(
-                        user_input,
-                        catalog,
-                        history=history,
-                        model=model,
-                        on_event=on_event,
-                    )
-                except urllib.error.URLError as exc:
-                    event_q.put({
-                        "type": "error",
-                        "message": (
-                            f"Ollama'ya bağlanılamıyor: {getattr(exc, 'reason', exc)}. "
-                            "Ollama çalışıyor mu? (`ollama serve`)"
-                        ),
-                    })
-                except Exception as exc:  # noqa: BLE001
-                    event_q.put({"type": "error", "message": str(exc)})
-                finally:
-                    event_q.put({"type": "done"})
-
-            thread = threading.Thread(target=runner, daemon=True)
-            thread.start()
-
-            while True:
-                event = await loop.run_in_executor(None, event_q.get)
-                await ws.send_json(event)
-                if event.get("type") == "done":
-                    break
+            # KRİTİK: stream_agent_events'i background task'ta başlat,
+            # main loop receive_json'a geri dönsün — approval_response
+            # mesajları işlenebilsin.
+            asyncio.create_task(stream_agent_events(user_input))
     except WebSocketDisconnect:
         pass
     finally:
-        # Bu bağlantı için handler'ı bırak; başka bağlantı varsa onun broker'ı kalır.
-        # Basitlik için handler'ı None'a çekiyoruz (single-user assumption v0.3.1).
         approval.set_handler(None)
         approval.reset_session()
 

@@ -403,7 +403,9 @@ def _cmd_install(ns: argparse.Namespace) -> int:
             )
             print(f"│    {marker} {str(p):<18} {risk_str}")
     else:
-        print("│  İzinler: (yok — sadece skill matching, tool yok)")
+        print("│  İzinler: (BELIRTILMEMIŞ — legacy mode)")
+        print("│    ⚠ Bu skill her tool çağrısı için runtime onay isteyecek.")
+        print("│    Yazarına manifest'e permission listesi eklemesini önerin.")
     if unknown:
         print(f"│  ⚠ Bilinmeyen: {', '.join(unknown)}")
     print("└" + "─" * 60)

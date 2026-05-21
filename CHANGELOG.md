@@ -5,6 +5,25 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-21
+
+### Düzeltildi
+- **KRİTİK web deadlock**: Yüksek/kritik risk komutlar veya legacy mode'da, agent thread
+  approval beklerken WS handler client'ın `approval_response` mesajını alamıyordu
+  (agent thread'i sync olarak bekliyordu, event loop bloklu). Sonuç: 120s timeout,
+  broker "no" döndü, kullanıcı tarayıcıda modal'da "evet" tıklasa bile **DENIED**.
+  - Düzeltme: `stream_agent_events()` artık `asyncio.create_task()` ile background'a
+    alınır. Main loop `receive_json`'a geri döner; approval mesajları işlenebilir.
+  - `asyncio.Lock` ile WS send'leri serialize edildi (paralel task'lardan korunmak için).
+
+### Eklendi
+- **Legacy mode** — manifest'te `permissions: []` veya hiç permission yoksa skill
+  artık reddedilmiyor; her tool çağrısı için **runtime onay** zorlanır.
+  - Marketplace'ten yüklenen v0.x öncesi format (`miniagent` skill'leri gibi) artık
+    "untrusted" davranışıyla çalışır — her komut görünür modal ister.
+  - Install'da net uyarı: "BELIRTILMEMIŞ — legacy mode" + "her çağrı için onay"
+- 2 yeni unit test (toplam 97).
+
 ## [0.4.0] - 2026-05-21
 
 ### Eklendi

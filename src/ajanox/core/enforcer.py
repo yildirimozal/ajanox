@@ -205,6 +205,23 @@ def enforce(
 
     required = classify_tool_call(tool, args)
 
+    # Legacy mode: skill manifest'te hiç permission belirtmemişse
+    # (eski format SKILL.md'ler), her tool çağrısı için runtime onay zorla.
+    # Bu marketplace'ten yüklenen v0.x öncesi skill'lerin çalışabilmesi için.
+    if not declared:
+        cmd_preview = args.get("command", str(args))
+        ok = approval.request_approval(
+            skill_name, tool, cmd_preview, risk="legacy", allow_session=True
+        )
+        audit.log_approval_prompt(skill_name, tool, args, "yes" if ok else "no")
+        if not ok:
+            audit.log_permission_denied(
+                skill_name, "legacy skill — user denied at runtime"
+            )
+            return False
+        audit.log_tool_call(skill_name, tool, args, True, "user_legacy")
+        return True
+
     # 1) Default-deny: declare yoksa hayır
     if required not in declared:
         audit.log_permission_denied(
