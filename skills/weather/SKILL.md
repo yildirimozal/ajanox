@@ -2,6 +2,8 @@
 name: weather
 version: 0.1.0
 description: Bir şehrin güncel hava durumunu söyler.
+icon: "🌤️"
+example_prompt: "İstanbul'da hava nasıl?"
 ajanox: ">=0.1.0 <1.0.0"
 permissions: [shell_safe, network_read]
 author:

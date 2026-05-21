@@ -21,6 +21,8 @@ class Skill:
     location: str
     version: str = "0.0.0"
     permissions: tuple[str, ...] = ()
+    icon: str = ""           # emoji veya path; UI'da göster
+    example_prompt: str = "" # tıklanınca gönderilen örnek komut
 
 
 def parse_frontmatter(text: str) -> dict[str, Any]:
@@ -83,6 +85,8 @@ def load_skill_catalog(skills_dir: Path) -> list[Skill]:
                 location=str(skill_md.resolve()),
                 version=str(fm.get("version", "0.0.0")),
                 permissions=permissions,
+                icon=str(fm.get("icon", "")).strip(),
+                example_prompt=str(fm.get("example_prompt", "")).strip(),
             )
         )
     return catalog

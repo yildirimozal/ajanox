@@ -42,11 +42,31 @@
             border-radius: 6px;
             padding: 10px 12px;
             margin-bottom: 8px;
-            cursor: default;
+            cursor: pointer;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            transition: background 120ms, border-color 120ms, transform 60ms;
         }
+        .skill:hover {
+            background: #262b3a;
+            border-color: #3a4258;
+        }
+        .skill:active { transform: scale(0.99); }
+        .skill[aria-disabled="true"] { cursor: not-allowed; opacity: 0.5; }
+        .skill-icon {
+            font-size: 22px;
+            line-height: 1;
+            flex-shrink: 0;
+            width: 28px;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .skill-body { flex: 1; min-width: 0; }
         .skill-name { font-weight: 600; font-size: 13px; }
         .skill-desc { color: var(--muted); font-size: 12px; margin-top: 4px; line-height: 1.4; }
         .skill-perms { margin-top: 6px; font-size: 11px; color: var(--accent); font-family: monospace; }
+        .skill-hint { margin-top: 6px; font-size: 11px; color: #6f9886; font-style: italic; }
 
         .main { display: flex; flex-direction: column; height: 100vh; }
         .messages { flex: 1; overflow-y: auto; padding: 24px; }
@@ -234,10 +254,21 @@
         <h1>Ajanox</h1>
         <div class="subtitle">v{{ info.version }} — {{ info.model }}</div>
         <div v-if="info.skills && info.skills.length">
-            <div v-for="s in info.skills" :key="s.name" class="skill">
-                <div class="skill-name">{{ s.name }}</div>
-                <div class="skill-desc">{{ s.description }}</div>
-                <div class="skill-perms">{{ s.permissions.join(', ') }}</div>
+            <div
+                v-for="s in info.skills"
+                :key="s.name"
+                class="skill"
+                :aria-disabled="thinking ? 'true' : 'false'"
+                :title="thinking ? 'Düşünüyor — bekleyin' : `Tıkla: ${skillExample(s)}`"
+                @click="runSkill(s)"
+            >
+                <div class="skill-icon">{{ skillIcon(s) }}</div>
+                <div class="skill-body">
+                    <div class="skill-name">{{ s.name }}</div>
+                    <div class="skill-desc">{{ s.description }}</div>
+                    <div class="skill-perms">{{ s.permissions.join(', ') }}</div>
+                    <div v-if="skillExample(s)" class="skill-hint">▸ {{ skillExample(s) }}</div>
+                </div>
             </div>
         </div>
         <div v-else class="subtitle">Skill yükleniyor…</div>
@@ -532,6 +563,31 @@ createApp({
             scrollDown();
         };
 
+        // Skill kart UX
+        const FALLBACK_ICONS = {
+            'weather': '🌤️',
+            'find-large-files': '📂',
+            'system-info': '📊',
+            'mac-notification': '🔔',
+            'delete-old-logs': '🗑️',
+            'open-ports': '🔌',
+            'git-log': '🌿',
+            'ip-location': '📍',
+            'json-format': '📋',
+            'disk-usage': '💾',
+            'network-info': '🌐',
+        };
+        const skillIcon = (s) => s.icon || FALLBACK_ICONS[s.name] || '⚙️';
+        const skillExample = (s) => s.example_prompt || '';
+
+        const runSkill = (s) => {
+            if (thinking.value) return;
+            const prompt = skillExample(s) || s.name;
+            // Composer'a koy + gönder (kullanıcı görebilsin gönderildiğini)
+            draft.value = prompt;
+            send();
+        };
+
         const respondApproval = (decision) => {
             if (!approvalRequest.value) return;
             ws.send(JSON.stringify({
@@ -592,6 +648,7 @@ createApp({
             messagesEl, textareaEl,
             approvalRequest,
             send, resetConversation, respondApproval,
+            skillIcon, skillExample, runSkill,
         };
     }
 }).mount('#app');

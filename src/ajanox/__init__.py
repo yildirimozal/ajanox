@@ -1,3 +1,3 @@
 """Ajanox — Türkçe doğal dil komutlarıyla çalışan ajan tabanlı OS katmanı."""
 
-__version__ = "0.4.3"
+__version__ = "0.4.4"

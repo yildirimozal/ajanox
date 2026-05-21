@@ -2,6 +2,8 @@
 name: system-info
 version: 0.1.0
 description: Sistemin temel durumunu özetler — CPU, RAM, disk, uptime.
+icon: "📊"
+example_prompt: "Bilgisayarın durumu nasıl?"
 ajanox: ">=0.2.0 <1.0.0"
 permissions: [shell_safe, system_info]
 author:

@@ -60,6 +60,15 @@ async def index() -> FileResponse:
 @app.get("/api/info")
 async def info() -> dict:
     catalog, sources = _collect_skills()
+    # Dedup: aynı skill name birden fazla kaynaktan gelirse (örn. builtin +
+    # cwd/skills) ilk gördüğümüzü tut. Kullanıcı panelde duplikat görmesin.
+    seen: set[str] = set()
+    unique = []
+    for s in catalog:
+        if s.name in seen:
+            continue
+        seen.add(s.name)
+        unique.append(s)
     return {
         "version": __version__,
         "model": os.environ.get("AJANOX_MODEL", DEFAULT_MODEL),
@@ -69,8 +78,10 @@ async def info() -> dict:
                 "version": s.version,
                 "description": s.description,
                 "permissions": list(s.permissions),
+                "icon": s.icon,
+                "example_prompt": s.example_prompt,
             }
-            for s in catalog
+            for s in unique
         ],
         "sources": sources,
     }

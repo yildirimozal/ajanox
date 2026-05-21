@@ -5,6 +5,27 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-05-21
+
+### Eklendi
+- **Skill paneli VS Code tarzı kartlar**:
+  - Her skill için **ikon** (emoji veya manifest'ten `icon`)
+  - Hover/active görsel feedback
+  - **Tıklanabilir** — kartın `example_prompt`'unu otomatik gönderir
+  - Kartta "▸ örnek prompt" ipucu (yeşil, italik)
+  - thinking sırasında disabled state (soluk + cursor not-allowed)
+- Skill manifest'ine 2 yeni opsiyonel alan:
+  - `icon: "🌤️"` — UI'da gösterilecek emoji veya path
+  - `example_prompt: "İstanbul'da hava nasıl?"` — kart tıklanınca gönderilir
+- 5 builtin skill'in tamamına icon + example_prompt eklendi
+- `Skill` dataclass'ına `icon` ve `example_prompt` field'ları
+- Fallback emoji map (manifest icon'u yoksa name'den tahmin)
+
+### Düzeltildi
+- **Skill listesi dedup** — aynı skill name birden fazla kaynaktan (örn.
+  builtin + cwd/skills) gelirse panelde **tek kez** görünür. Daha önce
+  duplikatlar gözüküyordu.
+
 ## [0.4.3] - 2026-05-21
 
 ### Eklendi
