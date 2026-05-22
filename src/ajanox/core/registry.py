@@ -33,16 +33,6 @@ def _user_skills_dir() -> Path:
     return _AJANOX_HOME() / "skills"
 
 
-DEFAULT_REGISTRIES = [
-    {
-        "name": "miniagent",
-        "url": "https://github.com/yildirimozal/miniagent",
-        "branch": "main",
-        "default": True,
-    },
-]
-
-
 @dataclass
 class Registry:
     name: str
@@ -77,6 +67,16 @@ class SkillSpec:
     raw_url: str
 
 
+DEFAULT_REGISTRIES: list[Registry] = [
+    Registry(
+        name="miniagent",
+        url="https://github.com/yildirimozal/miniagent",
+        branch="main",
+        default=True,
+    ),
+]
+
+
 # Pattern'ler
 _FULL_TREE_URL = re.compile(
     r"^https?://github\.com/([^/]+)/([^/]+)/tree/([^/]+)/skills/([^/?#]+)/?$"
@@ -91,13 +91,13 @@ _BARE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
 def load_registries() -> list[Registry]:
     path = _registries_file()
     if not path.exists():
-        return [Registry(**r) for r in DEFAULT_REGISTRIES]
+        return list(DEFAULT_REGISTRIES)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         items = data.get("registries", [])
         return [Registry(**r) for r in items]
     except (json.JSONDecodeError, OSError, TypeError):
-        return [Registry(**r) for r in DEFAULT_REGISTRIES]
+        return list(DEFAULT_REGISTRIES)
 
 
 def save_registries(registries: list[Registry]) -> None:

@@ -24,5 +24,7 @@ jobs:
           pip install -e ".[dev,signing]"
       - name: Lint (ruff)
         run: ruff check src/ tests/
+      - name: Type check (mypy)
+        run: mypy src/ajanox
       - name: Test (pytest)
         run: pytest -v
