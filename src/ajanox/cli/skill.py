@@ -21,6 +21,7 @@ from pathlib import Path
 from ..core import registry as reg_mod
 from ..core.permissions import (
     PERMISSION_RISK,
+    RESERVED_PERMISSIONS,
     validate_permissions,
 )
 from ..core.skill_loader import Skill, load_skill_catalog, parse_frontmatter
@@ -325,6 +326,12 @@ def _cmd_check(ns: argparse.Namespace) -> int:
                 warnings.append(f"Bilinmeyen permission: '{u}'")
             for f in forbidden:
                 errors.append(f"YASAK permission: '{f}' (v0.x'te kullanılamaz)")
+            for p in perms:
+                if str(p) in RESERVED_PERMISSIONS:
+                    warnings.append(
+                        f"'{p}' reserved — beyan edilebilir ama henüz uygulanmıyor "
+                        f"(tek başına yetki vermez)"
+                    )
 
     # Önerilen alanlar
     for field in _RECOMMENDED_FIELDS:

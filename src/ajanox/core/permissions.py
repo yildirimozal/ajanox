@@ -18,25 +18,48 @@ class RiskLevel(str, Enum):
 
 # v0.1 permission seti. Spec'in §3 tablosuyla birebir uyumlu olmalı.
 PERMISSION_RISK: dict[str, RiskLevel] = {
+    # --- ENFORCED: enforcer.classify_tool_call bu kategorileri üretir ---
     "file_read": RiskLevel.LOW,
     "file_write": RiskLevel.HIGH,
     "shell_safe": RiskLevel.LOW,
     "shell_unsafe": RiskLevel.HIGH,
     "network_read": RiskLevel.MEDIUM,
     "network_write": RiskLevel.HIGH,
+    "notification": RiskLevel.LOW,
+    # --- RESERVED: manifest'te beyan edilebilir ama henüz hiçbir classifier/
+    # primitive bu kategoriyi ÜRETMEZ. Yani tek başına beyan etmek bir yetki
+    # VERMEZ (ör. process_control beyan eden bir skill yine de `kill` için
+    # shell_unsafe'e ihtiyaç duyar). İlgili primitive/sınıflandırma gelene kadar
+    # bunlar yalnızca deklaratiftir — bkz RESERVED_PERMISSIONS. ---
     "process_read": RiskLevel.LOW,
     "process_control": RiskLevel.HIGH,
     "system_info": RiskLevel.LOW,
-    "notification": RiskLevel.LOW,
     "audio_play": RiskLevel.LOW,
     "clipboard": RiskLevel.MEDIUM,
     "lib_execute": RiskLevel.MEDIUM,
+    # --- FORBIDDEN ---
     "sudo": RiskLevel.CRITICAL,
 }
 
 
 # v0.x boyunca yasak permission'lar (Spec kararı C — sudo v1.0'da gelecek).
 FORBIDDEN_PERMISSIONS: frozenset[str] = frozenset({"sudo"})
+
+
+# Geçerli ama henüz uygulanmayan ("reserved") permission'lar. Bunları beyan etmek
+# manifest doğrulamasından geçer fakat tek başına bir tool çağrısına izin vermez;
+# enforcer hiçbir çağrıyı bu kategorilere sınıflandırmaz. False sense of security
+# vermemek için ayrıca işaretlenir (skill check bunları "reserved" olarak gösterebilir).
+RESERVED_PERMISSIONS: frozenset[str] = frozenset(
+    {
+        "process_read",
+        "process_control",
+        "system_info",
+        "audio_play",
+        "clipboard",
+        "lib_execute",
+    }
+)
 
 
 def get_risk(permission: str) -> RiskLevel | None:
