@@ -119,7 +119,7 @@ Not: 7B model tool-calling'de %20-50 daha az tutarlı. 14B kullanım için 16 GB
 | **K1 — Skill katmanı** | SKILL.md formatı + lazy-load loader + 14 permission seti |
 | **K0 — OS kernel** | Linux/Darwin (dokunulmaz, üstüne inşa edilir) |
 
-Detay: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) • [docs/SPEC.md](docs/SPEC.md) (Skill Spec v0.1) • [docs/SECURITY.md](docs/SECURITY.md)
+Detay: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) • [docs/SPEC.md](docs/SPEC.md) (Skill Spec v0.1) • [docs/SECURITY.md](docs/SECURITY.md) • [docs/yolculuk.md](docs/yolculuk.md) (24 saatte sıfırdan nasıl yapıldı)
 
 ## Skill yazmak
 
