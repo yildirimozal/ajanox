@@ -146,7 +146,11 @@ Detaylı rehber: [docs/DEVELOPER.md](docs/DEVELOPER.md)
 
 - ✅ **v0.2.x** — CLI + skill sistemi + güvenlik
 - ✅ **v0.3.x** — Web dashboard + approval modal
-- 🔄 **v1.0** — API stabilizasyonu, ekosistem, dokümantasyon
+- ✅ **v0.6** — Tool-call verification (halüsinasyon koruma)
+- ✅ **v0.7** — Bash sandbox default-on (bwrap/sandbox-exec)
+- ✅ **v0.8** — Cross-platform (WSL2)
+- ✅ **v0.9** — Domain allowlist + skill imzalama (ed25519/TOFU)
+- ✅ **v1.0** — API stabilizasyonu — Skill Spec donduruldu, 1.x boyunca breaking change yok
 - 🔄 **v2.0** — Ajanox Linux remix (Pop_OS modeli) — kendi installer, default shell · [ajanox-l2](https://github.com/yildirimozal/ajanox-l2) (ayrı repo)
 - 🔄 **v3.0+** — eBPF + LSM ile kernel-derinliğinde policy enforcement
 

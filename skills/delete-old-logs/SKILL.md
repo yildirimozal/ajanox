@@ -4,7 +4,7 @@ version: 0.1.0
 description: Belirli bir klasörde N günden eski log dosyalarını listeler, onay aldıktan sonra siler.
 icon: "🗑️"
 example_prompt: "/tmp altındaki 30 günden eski log dosyalarını sil"
-ajanox: ">=0.2.0 <1.0.0"
+ajanox: ">=0.2.0 <2.0.0"
 permissions: [shell_safe, shell_unsafe, file_write]
 author:
   name: Özal Yıldırım

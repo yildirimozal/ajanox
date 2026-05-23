@@ -155,12 +155,43 @@ def test_list_shows_skills(isolated_skills_dir):
     assert "shell_safe" in output
 
 
-def test_migrate_is_stub(isolated_skills_dir):
+def test_migrate_requires_path(isolated_skills_dir):
     err = io.StringIO()
     with redirect_stderr(err):
         rc = run(["migrate"])
+    assert rc == 1
+    assert "Kullanım" in err.getvalue()
+
+
+def test_migrate_upgrades_ajanox_constraint(tmp_path):
+    skill_dir = tmp_path / "old"
+    skill_dir.mkdir()
+    md = skill_dir / "SKILL.md"
+    md.write_text(
+        '---\nname: old\ndescription: x\najanox: ">=0.2.0 <1.0.0"\n'
+        "permissions: [shell_safe]\n---\n# body",
+        encoding="utf-8",
+    )
+    out = io.StringIO()
+    with redirect_stdout(out):
+        rc = run(["migrate", str(skill_dir)])
     assert rc == 0
-    assert "TODO" in err.getvalue()
+    assert '">=0.2.0 <2.0.0"' in md.read_text()
+
+
+def test_migrate_idempotent_on_current(tmp_path):
+    skill_dir = tmp_path / "cur"
+    skill_dir.mkdir()
+    md = skill_dir / "SKILL.md"
+    md.write_text(
+        '---\nname: cur\ndescription: x\najanox: ">=1.0.0 <2.0.0"\n---\n# body',
+        encoding="utf-8",
+    )
+    out = io.StringIO()
+    with redirect_stdout(out):
+        rc = run(["migrate", str(skill_dir)])
+    assert rc == 0
+    assert "değişiklik yok" in out.getvalue()
 
 
 def test_no_args_shows_help():

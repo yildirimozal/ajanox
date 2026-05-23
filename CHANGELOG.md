@@ -5,6 +5,38 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-23
+
+### 🎉 API STABİLİZASYONU — Skill Spec donduruldu
+
+Ajanox 1.0.0 ile **Skill Specification v1.0 kararlı** kabul edilir.
+**1.x serisi boyunca breaking change YOK** — yalnız geriye uyumlu ekleme.
+Kırıcı değişiklikler 2.0'a saklanır.
+
+### Eklendi
+- **Sürüm uyum kontrolü** (`core/compat.py`) — SPEC §1'de söz verilen otomatik
+  uyum kontrolü artık uygulanıyor. Skill `ajanox: ">=1.0.0 <2.0.0"` aralığı
+  belirtir; yüklü sürüm sağlamıyorsa skill katalogdan uyarıyla atlanır.
+  Operatörler: `>= > <= < == ~=`.
+- `Skill.ajanox_constraint` — `ajanox` semver range parse edilir
+- `ajanox skill migrate <dir>` artık gerçek: `ajanox` üst sınırını `<1.0.0`
+  → `<2.0.0` yükseltir (v0.x → 1.x temiz geçiş). Eksikse `>=1.0.0 <2.0.0` ekler.
+- 21 yeni test (`tests/test_compat.py`). Toplam: 230 test, hepsi pass
+
+### Değişti
+- **docs/SPEC.md → v1.0** (donduruldu, kararlılık + uyum garantisi dili)
+- Tüm builtin skill'ler `ajanox: "...<2.0.0"`'a yükseltildi (1.x uyumlu)
+- `skill init` boilerplate `ajanox: ">=1.0.0 <2.0.0"` üretir
+- pyproject classifier: `Pre-Alpha` → `Beta`
+- `_filter_by_os` → `_filter_compatible` (OS + sürüm kontrolünü birleştirir)
+
+### v1.0 kriterleri (roadmap docs/roadmap-v2-v3.md)
+- ✅ Skill Spec donduruldu
+- ✅ Tool-call verification (v0.6)
+- ✅ Bash sandbox default (v0.7)
+- ✅ 3 platform: macOS + Linux + WSL2 (v0.8)
+- ✅ Domain allowlist + skill imzalama (v0.9)
+
 ## [0.9.0] - 2026-05-23
 
 ### Eklendi

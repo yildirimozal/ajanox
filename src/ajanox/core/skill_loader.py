@@ -25,6 +25,7 @@ class Skill:
     example_prompt: str = "" # tıklanınca gönderilen örnek komut
     requires_os: tuple[str, ...] = ()  # boş = her platform
     network_domains: tuple[str, ...] = ()  # network.allowed_domains; boş = kısıt yok
+    ajanox_constraint: str = ""  # `ajanox` semver range; boş = kısıt yok
 
 
 def parse_frontmatter(text: str) -> dict[str, Any]:
@@ -105,6 +106,7 @@ def load_skill_catalog(skills_dir: Path) -> list[Skill]:
                 example_prompt=str(fm.get("example_prompt", "")).strip(),
                 requires_os=requires_os,
                 network_domains=network_domains,
+                ajanox_constraint=str(fm.get("ajanox", "")).strip(),
             )
         )
     return catalog
