@@ -5,6 +5,14 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-23
+
+### 🔧 Düzeltmeler
+
+- CI'yi bloke eden `ruff` lint hataları giderildi: kullanılmayan import'lar
+  kaldırıldı, `lambda` ataması `def`'e çevrildi, placeholder'sız f-string'ler
+  düzeltildi, `enforcer.py` import'ları dosya başına taşındı.
+
 ## [1.0.0] - 2026-05-23
 
 ### 🎉 API STABİLİZASYONU — Skill Spec donduruldu
