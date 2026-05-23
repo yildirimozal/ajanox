@@ -23,6 +23,7 @@ class Skill:
     permissions: tuple[str, ...] = ()
     icon: str = ""           # emoji veya path; UI'da göster
     example_prompt: str = "" # tıklanınca gönderilen örnek komut
+    requires_os: tuple[str, ...] = ()  # boş = her platform
 
 
 def parse_frontmatter(text: str) -> dict[str, Any]:
@@ -78,6 +79,13 @@ def load_skill_catalog(skills_dir: Path) -> list[Skill]:
             tuple(str(p) for p in perms_raw) if isinstance(perms_raw, list) else ()
         )
 
+        requires_raw = (fm.get("requires") or {}).get("os") if isinstance(fm.get("requires"), dict) else None
+        requires_os = (
+            tuple(str(o).strip().lower() for o in requires_raw)
+            if isinstance(requires_raw, list)
+            else ()
+        )
+
         catalog.append(
             Skill(
                 name=name,
@@ -87,6 +95,7 @@ def load_skill_catalog(skills_dir: Path) -> list[Skill]:
                 permissions=permissions,
                 icon=str(fm.get("icon", "")).strip(),
                 example_prompt=str(fm.get("example_prompt", "")).strip(),
+                requires_os=requires_os,
             )
         )
     return catalog

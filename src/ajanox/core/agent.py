@@ -59,10 +59,14 @@ def check_ollama_health(model: str | None = None, timeout: float = 5.0) -> tuple
         with urllib.request.urlopen(tags_url, timeout=timeout) as resp:
             data = json.loads(resp.read())
     except urllib.error.URLError as exc:
+        from .platform import ollama_host_hint
+
+        wsl_hint = ollama_host_hint()
         return False, (
             f"✗ Ollama'ya bağlanılamıyor ({OLLAMA_BASE}): {getattr(exc, 'reason', exc)}\n"
             f"  Ollama çalışıyor mu? (Terminal: `ollama serve` veya menübar uygulaması)\n"
             + install_hint
+            + (f"\n{wsl_hint}" if wsl_hint else "")
         )
     except Exception as exc:  # noqa: BLE001
         return False, f"✗ Ollama beklenmedik hata: {exc}\n" + install_hint

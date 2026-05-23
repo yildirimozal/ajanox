@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .. import __version__
 from ..core.agent import DEFAULT_MODEL, check_ollama_health, run_agent
+from ..core.platform import current_os, describe, supports_skill_os
 from ..core.skill_loader import Skill, load_skill_catalog
 
 
@@ -38,14 +39,32 @@ def _user_skills_dir() -> Path:
     return Path(os.environ.get("AJANOX_HOME", str(Path.home() / ".ajanox"))) / "skills"
 
 
-def _collect_skills() -> tuple[list[Skill], list[str]]:
-    """Tüm kaynaklardan skill'leri topla; (catalog, source_labels) döner.
+def _filter_by_os(catalog: list[Skill]) -> tuple[list[Skill], list[str]]:
+    """Geçerli platformla uyumsuz skill'leri ayır.
+
+    Returns: (uyumlu_skill'ler, atlanan_skill_adları)
+    """
+    compatible: list[Skill] = []
+    skipped: list[str] = []
+    for s in catalog:
+        if supports_skill_os(list(s.requires_os)):
+            compatible.append(s)
+        else:
+            skipped.append(f"{s.name} (requires: {', '.join(s.requires_os)})")
+    return compatible, skipped
+
+
+def _collect_skills() -> tuple[list[Skill], list[str], list[str]]:
+    """Tüm kaynaklardan skill'leri topla; (catalog, source_labels, skipped) döner.
 
     Override: AJANOX_SKILLS_DIR env varsa SADECE o yol kullanılır.
+    Geçerli platformla uyumsuz skill'ler katalogdan çıkarılır.
     """
     override = os.environ.get("AJANOX_SKILLS_DIR")
     if override:
-        return load_skill_catalog(Path(override)), [override]
+        loaded = load_skill_catalog(Path(override))
+        compatible, skipped = _filter_by_os(loaded)
+        return compatible, [override], skipped
 
     catalog: list[Skill] = []
     sources: list[str] = []
@@ -59,14 +78,15 @@ def _collect_skills() -> tuple[list[Skill], list[str]]:
             if loaded:
                 catalog.extend(loaded)
                 sources.append(str(source_path))
-    return catalog, sources
+    compatible, skipped = _filter_by_os(catalog)
+    return compatible, sources, skipped
 
 
 def run() -> int:
-    catalog, sources = _collect_skills()
+    catalog, sources, skipped = _collect_skills()
     model = os.environ.get("AJANOX_MODEL", DEFAULT_MODEL)
 
-    print(f"Ajanox v{__version__} — model: {model}")
+    print(f"Ajanox v{__version__} — model: {model} — platform: {describe()}")
 
     # Ön gereksinim kontrolü — Ollama + model
     ok, health_msg = check_ollama_health(model)
@@ -85,6 +105,8 @@ def run() -> int:
         print(f"  - {s.name} (v{s.version}): {s.description}")
     if not catalog:
         print("  (henüz skill yok — 'ajanox skill init <name>' ile başla)")
+    if skipped:
+        print(f"  ({len(skipped)} skill bu platformda atlandı: {'; '.join(skipped)})")
     print("Çıkmak için 'q' yaz, konuşmayı sıfırlamak için '/reset'.\n")
 
     history: list[dict] = []  # multi-turn conversation state (sliding window)

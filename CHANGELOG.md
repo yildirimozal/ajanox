@@ -5,6 +5,28 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-23
+
+### Eklendi
+- **🖥️ Cross-platform (WSL2)** — merkezi platform tespiti (`core/platform.py`):
+  - `current_os()` → `macos` / `linux` / `wsl` / `windows` / `unknown`
+  - `is_wsl()` — `/proc/version` içinde "microsoft"/"WSL" arar
+  - WSL2 hem `wsl` hem `linux` skill'lerini çalıştırır (gerçek Linux kernel)
+- Skill manifest `requires.os` artık enforce ediliyor:
+  - Geçerli platformla uyumsuz skill'ler katalogdan çıkarılır
+  - CLI başlığında atlanan skill'ler raporlanır
+  - macOS-only `mac-notification` Linux/WSL'de otomatik gizlenir
+- CLI başlığı platform gösterir: `Ajanox v0.8.0 — model: ... — platform: WSL2 (Windows)`
+- Ollama health check WSL2'ye özgü ipucu verir (Windows host vs WSL içi kurulum,
+  `AJANOX_OLLAMA_URL` ile host IP)
+- `skill init` boilerplate `os: [linux, darwin, wsl]` üretir
+- 15 yeni test (`tests/test_platform.py`) — toplam: 170 test, hepsi pass
+
+### Değişti
+- `_collect_skills()` artık `(catalog, sources, skipped)` döner (önceden 2-tuple);
+  web server callers güncellendi
+- `Skill` dataclass'a `requires_os: tuple[str, ...]` eklendi
+
 ## [0.7.0] - 2026-05-23
 
 ### Eklendi

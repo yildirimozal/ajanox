@@ -177,7 +177,7 @@ license: Apache-2.0
 language: tr
 languages: [tr]
 requires:
-  os: [linux, darwin]
+  os: [linux, darwin, wsl]
   internet: false
 tags: [todo]
 ---
