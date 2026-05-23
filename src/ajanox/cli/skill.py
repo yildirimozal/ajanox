@@ -96,6 +96,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p_mig.add_argument("path", nargs="?", default="")
     p_mig.set_defaults(func=_cmd_migrate)
 
+    p_keygen = sub.add_parser("keygen", help="ed25519 imza anahtar çifti üret")
+    p_keygen.add_argument(
+        "--out", default="", help="Özel anahtarı yazılacak dosya (default: stdout)"
+    )
+    p_keygen.set_defaults(func=_cmd_keygen)
+
+    p_sign = sub.add_parser("sign", help="Skill'i özel anahtarla imzala (SKILL.md.sig)")
+    p_sign.add_argument("path", help="Skill klasörü veya SKILL.md yolu")
+    p_sign.add_argument(
+        "--key", required=True, help="Özel anahtar dosyası (keygen ile üretilen)"
+    )
+    p_sign.set_defaults(func=_cmd_sign)
+
+    p_verify = sub.add_parser("verify", help="Skill imzasını doğrula (+ TOFU)")
+    p_verify.add_argument("path", help="Skill klasörü veya SKILL.md yolu")
+    p_verify.set_defaults(func=_cmd_verify)
+
     return parser
 
 
@@ -484,4 +501,120 @@ def _cmd_migrate(ns: argparse.Namespace) -> int:
         "Şu an v0.x → v0.x yükseltmesi gereksiz (geriye uyum var).",
         file=sys.stderr,
     )
+    return 0
+
+
+# ============================================================
+# keygen / sign / verify (skill imzalama — v0.9)
+# ============================================================
+def _resolve_skill_md(raw: str) -> Path | None:
+    """Klasör veya dosya yolundan SKILL.md'yi bul."""
+    path = Path(raw).expanduser()
+    if path.is_dir():
+        path = path / "SKILL.md"
+    return path if path.exists() else None
+
+
+def _skill_name_from_md(skill_md: Path) -> str:
+    """SKILL.md frontmatter'ından name; yoksa klasör adı."""
+    try:
+        fm = parse_frontmatter(skill_md.read_text(encoding="utf-8"))
+        name = str(fm.get("name", "")).strip()
+        if name:
+            return name
+    except OSError:
+        pass
+    return skill_md.parent.name
+
+
+def _cmd_keygen(ns: argparse.Namespace) -> int:
+    from ..core import signing
+
+    try:
+        priv, pub = signing.generate_keypair()
+    except signing.SigningUnavailable as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+
+    if ns.out:
+        out = Path(ns.out).expanduser()
+        out.write_text(priv + "\n", encoding="utf-8")
+        try:
+            out.chmod(0o600)
+        except OSError:
+            pass
+        print(f"✓ Özel anahtar yazıldı: {out} (chmod 600)")
+        print(f"  Public key: {pub}")
+        print("  ⚠ Özel anahtarı GİZLİ tut, paylaşma. Public key'i skill ile dağıt.")
+    else:
+        print("# Özel anahtar (GİZLİ — dosyaya kaydet, paylaşma):")
+        print(priv)
+        print("# Public key (skill ile dağıtılabilir):")
+        print(pub)
+    return 0
+
+
+def _cmd_sign(ns: argparse.Namespace) -> int:
+    from ..core import signing
+
+    skill_md = _resolve_skill_md(ns.path)
+    if not skill_md:
+        print(f"✗ SKILL.md bulunamadı: {ns.path}", file=sys.stderr)
+        return 1
+
+    key_path = Path(ns.key).expanduser()
+    if not key_path.exists():
+        print(f"✗ Anahtar dosyası yok: {key_path}", file=sys.stderr)
+        return 1
+
+    private_hex = key_path.read_text(encoding="utf-8").strip()
+    try:
+        sig_path = signing.sign_file(skill_md, private_hex)
+    except signing.SigningUnavailable as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"✗ Geçersiz anahtar: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"✓ İmzalandı: {sig_path}")
+    print(f"  Skill: {_skill_name_from_md(skill_md)}")
+    print(f"  Public key: {signing.public_from_private(private_hex)}")
+    return 0
+
+
+def _cmd_verify(ns: argparse.Namespace) -> int:
+    from ..core import signing
+
+    skill_md = _resolve_skill_md(ns.path)
+    if not skill_md:
+        print(f"✗ SKILL.md bulunamadı: {ns.path}", file=sys.stderr)
+        return 1
+
+    skill_name = _skill_name_from_md(skill_md)
+    try:
+        result = signing.verify_file(skill_md, skill_name)
+    except signing.SigningUnavailable as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+
+    if not result.valid:
+        print(f"✗ İmza GEÇERSİZ — {result.error}", file=sys.stderr)
+        return 1
+
+    if result.trust == "changed":
+        print(f"⚠ İmza geçerli AMA yazar anahtarı DEĞİŞTİ — '{skill_name}'", file=sys.stderr)
+        print(f"  Önceki anahtar: {result.previous_pubkey}", file=sys.stderr)
+        print(f"  Şimdiki anahtar: {result.pubkey}", file=sys.stderr)
+        print(
+            "  Bu beklenen bir güncellemeyse: ~/.ajanox/trust/ altındaki dosyayı\n"
+            "  sil ve tekrar verify et. Beklenmiyorsa KURMA — kimlik sahteciliği olabilir.",
+            file=sys.stderr,
+        )
+        return 2
+
+    label = "yeni yazar — anahtar TOFU deposuna kaydedildi" if result.trust == "new" else "bilinen yazar"
+    print(f"✓ İmza geçerli ({label})")
+    print(f"  Skill: {skill_name}")
+    print(f"  Public key: {result.pubkey}")
     return 0
