@@ -13,10 +13,18 @@ import urllib.request
 from pathlib import Path
 
 from . import enforcer
+from .audit import log_verification
 from .matcher import find_best_match, format_match_hint
 from .parser import extract_tool_call, strip_tool_call_tags
 from .primitives import PRIMITIVES
 from .skill_loader import Skill, format_skill_catalog, load_skill_catalog
+from .verifier import (
+    ToolTrace,
+    VerificationResult,
+    format_warning_text,
+    get_mode,
+    verify,
+)
 
 
 # Match yokken kullanılan default permission seti.
@@ -254,6 +262,7 @@ def run_agent(
         {"role": "user", "content": user_input},
     ]
     final_response = ""
+    trace: list[ToolTrace] = []  # bu turda çalışan tool'lar — verifier için
 
     for _ in range(max_iter):
         # Streaming chat: chunk'ları UI'a yolla. Tool call algılanırsa iptal
@@ -275,9 +284,21 @@ def run_agent(
         tool_call = extract_tool_call(content)
         if not tool_call:
             final_response = strip_tool_call_tags(content)
+            verification = _verify_and_emit(final_response, trace, emit)
+            if verification.verdict == "failed":
+                # strict mode: cevabı blokla, kullanıcıya neden olmadığını söyle
+                blocked = (
+                    "(Cevap doğrulamada başarısız — strict modda gösterilmedi.)\n\n"
+                    + format_warning_text(verification)
+                )
+                print(f"\nAjanox: {blocked}\n")
+                emit({"type": "final", "content": blocked})
+                return _trimmed(history, user_input, blocked, history_limit)
             print(
                 f"\nAjanox: {final_response}\n" if final_response else "\n(Boş cevap)\n"
             )
+            if verification.warnings:
+                print(format_warning_text(verification) + "\n")
             # Streaming yapıldıysa UI'daki kabarcık zaten dolu — final event ile
             # 'kapanış' yapar (kind: assistant_streaming → assistant). Streaming
             # yapılmadıysa (CLI mode) normal mesaj olarak gösterir.
@@ -291,6 +312,7 @@ def run_agent(
         name = tool_call.get("name", "")
         args = tool_call.get("arguments", {}) or {}
 
+        tool_success = False
         if name not in PRIMITIVES:
             result = f"Hata: '{name}' bilinmeyen tool."
             print(f"  [warn] unknown tool: {name}")
@@ -310,11 +332,21 @@ def run_agent(
             emit({"type": "tool_call", "tool": name, "args": args})
             try:
                 result = PRIMITIVES[name](**args)
+                tool_success = not str(result).startswith("Hata:")
             except TypeError as exc:
                 result = f"Hata: tool argümanları yanlış: {exc}"
             preview = str(result)[:120].replace("\n", " ")
             print(f"  [out ] {preview}{'…' if len(str(result)) > 120 else ''}")
             emit({"type": "tool_result", "tool": name, "output": str(result)[:1000]})
+
+        trace.append(
+            ToolTrace(
+                name=name,
+                args=dict(args),
+                success=tool_success,
+                output_preview=str(result)[:500],
+            )
+        )
 
         messages.append(
             {"role": "user", "content": f"[TOOL RESULT - {name}]\n{result}"}
@@ -334,6 +366,33 @@ def run_agent(
 
     print("\n(Max iterasyon aşıldı.)\n")
     return _trimmed(history, user_input, final_response, history_limit)
+
+
+def _verify_and_emit(
+    final_response: str,
+    trace: list[ToolTrace],
+    emit,
+) -> VerificationResult:
+    """Verifier'ı çağır, event yolla, audit'e yaz."""
+    mode = get_mode()
+    result = verify(final_response, trace, mode=mode)
+    if not result.ok:
+        emit(
+            {
+                "type": "verification",
+                "verdict": result.verdict,
+                "warnings": [
+                    {"code": w.code, "claim": w.claim, "detail": w.detail}
+                    for w in result.warnings
+                ],
+            }
+        )
+    log_verification(
+        verdict=result.verdict,
+        warning_codes=[w.code for w in result.warnings],
+        mode=mode,
+    )
+    return result
 
 
 def _trimmed(

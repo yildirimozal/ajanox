@@ -105,7 +105,7 @@ Not: 7B model tool-calling'de %20-50 daha az tutarlı. 14B kullanım için 16 GB
 | **Veri** | Cloud API'lere gider (Claude, OpenAI) | Makinende kalır, **internet gerekmez** |
 | **Dil** | İngilizce-öncelik | **Türkçe-öncelik** + İngilizce |
 | **Genişleme** | Kod yazmak gerek | **Markdown skill** — Python öğrenmesen de yaz |
-| **Güvenlik** | Open Interpreter `rm -rf /` yapabilir | Android-modeli **permission + runtime onay + audit log** |
+| **Güvenlik** | Open Interpreter `rm -rf /` yapabilir | Android-modeli **permission + runtime onay + audit log + tool-call verification** |
 | **Lisans** | Çoğu kapalı (Apple Intelligence, Copilot+) | **Apache 2.0** — fork, ticari, ne istersen |
 
 ## Mimari

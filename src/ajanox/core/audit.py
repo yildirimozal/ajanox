@@ -65,3 +65,12 @@ def log_permission_denied(skill: str, reason: str) -> None:
 
 def log_skill_load(skill: str, version: str, permissions: list[str]) -> None:
     log_event("skill_load", skill=skill, version=version, permissions=permissions)
+
+
+def log_verification(verdict: str, warning_codes: list[str], mode: str) -> None:
+    log_event(
+        "verification",
+        verdict=verdict,
+        warning_codes=warning_codes,
+        mode=mode,
+    )

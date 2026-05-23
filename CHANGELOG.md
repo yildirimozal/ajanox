@@ -5,6 +5,31 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-23
+
+### Eklendi
+- **🛡️ Tool-call verification** — agent loop bitince final cevabı, o turda
+  gerçekten çağrılan tool'ların trace'ine karşı kontrol eden heuristic katman.
+  Üç sınıf halüsinasyonu yakalar:
+  - **unsupported_claim** — "X'i sildim/kurdum" der ama eşleşen tool call yok
+  - **result_mismatch** — bash exit-nonzero döndü, model "başarılı" der
+  - **fabricated_output** — final cevapta bash code bloğu var ama bash trace yok
+- 3 mod (env var `AJANOX_VERIFY`):
+  - `warn` (default) — uyarı göster, cevabı yine de yazdır
+  - `strict` — uyarı varsa cevabı blokla, kullanıcıya neden olmadığını söyle
+  - `off` — tamamen kapalı
+- Yeni event tipi `verification` — WebSocket üzerinden web dashboard'a yollanır
+  (UI tarafında badge eklemek v0.7+ konusu)
+- Audit log entry: `event=verification` — verdict + warning_codes + mode
+- 7 TR past-tense action regex (sil/kur/yükle/çalıştır/durdur/oku/listele)
+  + negatif/imperatif/future formlar yanlış yakalanmaz
+- 29 yeni test (`tests/test_verifier.py`) — toplam: 126 test, hepsi pass
+
+### Değişti
+- `core/agent.py` — `run_agent` artık `ToolTrace` listesi tutar; her tool
+  çağrısının `(name, args, success, output_preview)` özetini kaydeder.
+  Loop sonunda `_verify_and_emit` çağırır.
+
 ## [0.5.0] - 2026-05-21
 
 ### Eklendi
