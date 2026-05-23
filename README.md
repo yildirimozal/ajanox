@@ -6,7 +6,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/ajanox.svg)](https://pypi.org/project/ajanox/)
 [![Python](https://img.shields.io/pypi/pyversions/ajanox.svg)](https://pypi.org/project/ajanox/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-80%2F80-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-230%2F230-brightgreen)](tests/)
 
 ---
 
