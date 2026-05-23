@@ -44,6 +44,42 @@ def test_load_real_skills():
     assert "mac-notification" in names
 
 
+def test_load_parses_requires_os_and_network_domains(tmp_path):
+    skill_dir = tmp_path / "netskill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\n"
+        "name: netskill\n"
+        "description: weather via api\n"
+        "version: 0.1.0\n"
+        "permissions: [network_read]\n"
+        "requires:\n"
+        "  os: [linux, darwin]\n"
+        "network:\n"
+        "  allowed_domains: [wttr.in, API.OpenWeatherMap.org]\n"
+        "---\n# body",
+        encoding="utf-8",
+    )
+    catalog = load_skill_catalog(tmp_path)
+    skill = next(s for s in catalog if s.name == "netskill")
+    assert skill.requires_os == ("linux", "darwin")
+    # domain'ler lowercase normalize edilir
+    assert skill.network_domains == ("wttr.in", "api.openweathermap.org")
+
+
+def test_load_no_network_section_empty_domains(tmp_path):
+    skill_dir = tmp_path / "plain"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: plain\ndescription: x\npermissions: [shell_safe]\n---\n# b",
+        encoding="utf-8",
+    )
+    catalog = load_skill_catalog(tmp_path)
+    skill = next(s for s in catalog if s.name == "plain")
+    assert skill.network_domains == ()
+    assert skill.requires_os == ()
+
+
 def test_format_catalog():
     from ajanox.core.skill_loader import Skill
 

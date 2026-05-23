@@ -12,7 +12,7 @@ import os
 import urllib.request
 from pathlib import Path
 
-from . import enforcer
+from . import enforcer, netfilter
 from .audit import log_verification
 from .matcher import find_best_match, format_match_hint
 from .parser import extract_tool_call, strip_tool_call_tags
@@ -249,10 +249,12 @@ def run_agent(
         active_skill = matched_skill.name
         active_perms: tuple[str, ...] = matched_skill.permissions or ()
         active_location: str | None = matched_skill.location
+        active_domains: frozenset[str] = frozenset(matched_skill.network_domains)
     else:
         active_skill = DEFAULT_SYSTEM_SKILL_NAME
         active_perms = DEFAULT_SYSTEM_PERMISSIONS
         active_location = None
+        active_domains = frozenset()
 
     system_prompt = (
         SYSTEM_PROMPT_BASE
@@ -330,6 +332,22 @@ def run_agent(
             )
             print(f"  [denied] {name} for skill={active_skill}")
             emit({"type": "denied", "tool": name, "skill": active_skill})
+        elif name == "bash" and active_domains and (
+            _dc := netfilter.check_command(str(args.get("command", "")), set(active_domains))
+        ).violations:
+            result = (
+                f"Domain reddedildi: '{active_skill}' skill'i yalnız "
+                f"{sorted(active_domains)} domain'lerine erişebilir; "
+                f"komut şunları hedefliyor: {sorted(_dc.violations)}."
+            )
+            print(f"  [denied-domain] {sorted(_dc.violations)} for skill={active_skill}")
+            emit({
+                "type": "denied",
+                "tool": name,
+                "skill": active_skill,
+                "reason": "domain",
+                "violations": sorted(_dc.violations),
+            })
         else:
             if name != "bash":
                 print(f"  [tool] {name}({args})")

@@ -635,18 +635,19 @@ createApp({
                         text: trim(event.output, 200).replace(/\n/g, ' '),
                     });
                     break;
-                case 'denied':
+                case 'denied': {
                     // Görünür mesaj — güvenlik kullanıcıya gösterilmeli
+                    const detail = event.reason === 'domain'
+                        ? `${event.skill} → ${event.tool}: izinsiz domain ${(event.violations || []).join(', ')}`
+                        : `${event.skill} → ${event.tool}`;
                     messages.value.push({
                         kind: 'denied',
-                        role: 'permission denied',
-                        content: `${event.skill} → ${event.tool}`,
+                        role: event.reason === 'domain' ? 'domain denied' : 'permission denied',
+                        content: detail,
                     });
-                    currentEvents.push({
-                        label: 'denied',
-                        text: `${event.skill} → ${event.tool}`,
-                    });
+                    currentEvents.push({ label: 'denied', text: detail });
                     break;
+                }
                 case 'warn':
                     messages.value.push({
                         kind: 'warn',
