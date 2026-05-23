@@ -1,8 +1,14 @@
-# Ajanox Skill Specification v0.1
+# Ajanox Skill Specification v1.0
 
-> **Durum:** v0.1 sonlandırıldı (2026-05-20). İngilizce çevirisi `SPEC.en.md` olarak yazılacak. Ana repoya `docs/SPEC.md` olarak kopyalanacak.
-> **Spec'in kendi sürümü:** 0.1.0 (semver)
-> **Geriye dönük uyum:** miniagent v2 formatından mümkün olduğunca minimum kırılma ile genişletme; v0.x boyunca geriye uyumluluk uyarıyla tutulacak, v1.0'da temiz kesme.
+> **Durum:** v1.0 DONMUŞ (2026-05-23). Ajanox 1.0.0 ile birlikte Skill Spec
+> kararlı kabul edilir. **1.x serisi boyunca breaking change YOK** — yalnız
+> geriye uyumlu ekleme (yeni opsiyonel alanlar, yeni permission'lar). Kırıcı
+> değişiklikler 2.0'a saklanır.
+> **Spec'in kendi sürümü:** 1.0.0 (semver)
+> **Uyum garantisi:** `ajanox: ">=1.0.0 <2.0.0"` belirten bir skill 1.x'in
+> sonuna kadar çalışır. Sürüm uyumu `ajanox skill` katalog yüklemede otomatik
+> kontrol edilir (`core/compat.py`); uyumsuz skill'ler uyarıyla atlanır.
+> v0.x manifest'leri `ajanox skill migrate <dir>` ile 1.x'e yükseltilir.
 
 ---
 

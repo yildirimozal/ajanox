@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .. import __version__
 from ..core.agent import DEFAULT_MODEL, check_ollama_health, run_agent
+from ..core.compat import check_skill
 from ..core.platform import current_os, describe, supports_skill_os
 from ..core.skill_loader import Skill, load_skill_catalog
 
@@ -39,18 +40,22 @@ def _user_skills_dir() -> Path:
     return Path(os.environ.get("AJANOX_HOME", str(Path.home() / ".ajanox"))) / "skills"
 
 
-def _filter_by_os(catalog: list[Skill]) -> tuple[list[Skill], list[str]]:
-    """Geçerli platformla uyumsuz skill'leri ayır.
+def _filter_compatible(catalog: list[Skill]) -> tuple[list[Skill], list[str]]:
+    """Geçerli platform + Ajanox sürümüyle uyumsuz skill'leri ayır.
 
-    Returns: (uyumlu_skill'ler, atlanan_skill_adları)
+    Returns: (uyumlu_skill'ler, atlanan_skill_açıklamaları)
     """
     compatible: list[Skill] = []
     skipped: list[str] = []
     for s in catalog:
-        if supports_skill_os(list(s.requires_os)):
-            compatible.append(s)
-        else:
-            skipped.append(f"{s.name} (requires: {', '.join(s.requires_os)})")
+        if not supports_skill_os(list(s.requires_os)):
+            skipped.append(f"{s.name} (requires OS: {', '.join(s.requires_os)})")
+            continue
+        ok, reason = check_skill(s.ajanox_constraint, __version__)
+        if not ok:
+            skipped.append(f"{s.name} ({reason})")
+            continue
+        compatible.append(s)
     return compatible, skipped
 
 
@@ -63,7 +68,7 @@ def _collect_skills() -> tuple[list[Skill], list[str], list[str]]:
     override = os.environ.get("AJANOX_SKILLS_DIR")
     if override:
         loaded = load_skill_catalog(Path(override))
-        compatible, skipped = _filter_by_os(loaded)
+        compatible, skipped = _filter_compatible(loaded)
         return compatible, [override], skipped
 
     catalog: list[Skill] = []
@@ -78,7 +83,7 @@ def _collect_skills() -> tuple[list[Skill], list[str], list[str]]:
             if loaded:
                 catalog.extend(loaded)
                 sources.append(str(source_path))
-    compatible, skipped = _filter_by_os(catalog)
+    compatible, skipped = _filter_compatible(catalog)
     return compatible, sources, skipped
 
 

@@ -4,7 +4,7 @@ version: 0.1.0
 description: macOS'ta masaüstü bildirimi gösterir. Sadece macOS'ta çalışır.
 icon: "🔔"
 example_prompt: "Bana 'merhaba' diye bildirim yolla"
-ajanox: ">=0.1.0 <1.0.0"
+ajanox: ">=0.1.0 <2.0.0"
 permissions: [shell_safe, notification]
 author:
   name: Özal Yıldırım

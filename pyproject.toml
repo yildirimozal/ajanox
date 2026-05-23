@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ajanox"
-version = "0.9.0"
+version = "1.0.0"
 description = "Türkçe doğal dil komutlarıyla çalışan, ajan tabanlı, açık kaynak işletim sistemi katmanı"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "Özal Yıldırım" }]
 keywords = ["agent", "llm", "ollama", "skills", "os", "turkish"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",

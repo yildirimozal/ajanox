@@ -185,7 +185,7 @@ def _boilerplate(name: str, description: str) -> str:
 name: {name}
 version: 0.1.0
 description: {description}
-ajanox: ">=0.2.0 <1.0.0"
+ajanox: ">=1.0.0 <2.0.0"
 permissions: [shell_safe]
 author:
   name: TODO
@@ -495,12 +495,44 @@ def _cmd_search(ns: argparse.Namespace) -> int:
 # ============================================================
 # migrate (stub)
 # ============================================================
+_AJANOX_LINE = re.compile(r'^(ajanox:\s*").*?(")\s*$', re.MULTILINE)
+
+
 def _cmd_migrate(ns: argparse.Namespace) -> int:
-    print(
-        "(TODO) Migrate v1.0 yayınlandığında implement edilecek.\n"
-        "Şu an v0.x → v0.x yükseltmesi gereksiz (geriye uyum var).",
-        file=sys.stderr,
-    )
+    """SKILL.md'yi v1.0 formatına yükselt.
+
+    Şu an: `ajanox` constraint üst sınırını `<1.0.0` → `<2.0.0` yapar
+    (1.x serisiyle uyumlu hale getirir). Eksikse `>=1.0.0 <2.0.0` ekler.
+    """
+    if not ns.path:
+        print("✗ Kullanım: ajanox skill migrate <skill-dizini>", file=sys.stderr)
+        return 1
+
+    skill_md = _resolve_skill_md(ns.path)
+    if not skill_md:
+        print(f"✗ SKILL.md bulunamadı: {ns.path}", file=sys.stderr)
+        return 1
+
+    text = skill_md.read_text(encoding="utf-8")
+    fm = parse_frontmatter(text)
+    old = str(fm.get("ajanox", "")).strip()
+
+    if "<1.0.0" in old:
+        new = old.replace("<1.0.0", "<2.0.0")
+    elif not old:
+        new = ">=1.0.0 <2.0.0"
+    else:
+        print(f"✓ '{skill_md.parent.name}' zaten güncel (ajanox: \"{old}\") — değişiklik yok")
+        return 0
+
+    if _AJANOX_LINE.search(text):
+        updated = _AJANOX_LINE.sub(rf'\g<1>{new}\g<2>', text, count=1)
+    else:
+        # ajanox satırı yok — frontmatter'a ekle (ilk --- sonrası)
+        updated = text.replace("---\n", f'---\najanox: "{new}"\n', 1)
+
+    skill_md.write_text(updated, encoding="utf-8")
+    print(f"✓ '{skill_md.parent.name}' yükseltildi: ajanox: \"{old or '(yok)'}\" → \"{new}\"")
     return 0
 
 

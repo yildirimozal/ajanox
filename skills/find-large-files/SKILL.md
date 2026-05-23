@@ -4,7 +4,7 @@ version: 0.1.0
 description: Bir klasördeki en büyük dosyaları ve alt klasörleri listeler.
 icon: "📂"
 example_prompt: "Downloads klasöründeki en büyük dosyaları bul"
-ajanox: ">=0.1.0 <1.0.0"
+ajanox: ">=0.1.0 <2.0.0"
 permissions: [shell_safe, file_read]
 author:
   name: Özal Yıldırım
