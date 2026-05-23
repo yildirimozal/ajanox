@@ -10,14 +10,13 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
-from pathlib import Path
 
 from . import enforcer, netfilter
 from .audit import log_verification
 from .matcher import find_best_match, format_match_hint
 from .parser import extract_tool_call, strip_tool_call_tags
 from .primitives import ACTIVE_PERMISSIONS, PRIMITIVES
-from .skill_loader import Skill, format_skill_catalog, load_skill_catalog
+from .skill_loader import Skill, format_skill_catalog
 from .verifier import (
     ToolTrace,
     VerificationResult,

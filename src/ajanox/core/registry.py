@@ -21,7 +21,8 @@ from pathlib import Path
 from typing import Optional
 
 
-_AJANOX_HOME = lambda: Path(os.environ.get("AJANOX_HOME", str(Path.home() / ".ajanox")))
+def _AJANOX_HOME() -> Path:
+    return Path(os.environ.get("AJANOX_HOME", str(Path.home() / ".ajanox")))
 
 
 def _registries_file() -> Path:
@@ -166,8 +167,8 @@ def fetch_skill_md(url: str, timeout: float = 10.0) -> str:
 
     if not content.strip().startswith("---"):
         raise ValueError(
-            f"İndirilen içerik geçerli bir SKILL.md değil "
-            f"(YAML frontmatter `---` ile başlamıyor)"
+            "İndirilen içerik geçerli bir SKILL.md değil "
+            "(YAML frontmatter `---` ile başlamıyor)"
         )
     return content
 

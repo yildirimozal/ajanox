@@ -21,6 +21,9 @@ from typing import Iterable
 
 import yaml
 
+from . import approval, audit
+from .permissions import is_runtime_approval_required
+
 
 _TILDE_PATTERN = re.compile(r"(^|[\s'\"])~(?=/|$|\s)")
 
@@ -29,13 +32,6 @@ def _expand_tildes(text: str) -> str:
     """Komut metni içindeki ~/ ifadelerini home dir ile genişlet."""
     home = os.path.expanduser("~")
     return _TILDE_PATTERN.sub(lambda m: m.group(1) + home, text)
-
-from . import approval, audit
-from .permissions import (
-    PERMISSION_RISK,
-    RiskLevel,
-    is_runtime_approval_required,
-)
 
 
 _WHITELIST_PATH = Path(__file__).parent / "whitelist.yml"
