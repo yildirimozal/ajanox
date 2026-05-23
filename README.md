@@ -121,6 +121,8 @@ Not: 7B model tool-calling'de %20-50 daha az tutarlı. 14B kullanım için 16 GB
 
 Detay: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) • [docs/SPEC.md](docs/SPEC.md) (Skill Spec v0.1) • [docs/SECURITY.md](docs/SECURITY.md) • [docs/yolculuk.md](docs/yolculuk.md) (24 saatte sıfırdan nasıl yapıldı)
 
+> **OS-katmanı (v2.0) ayrı repo'da:** [ajanox-l2](https://github.com/yildirimozal/ajanox-l2) — Ubuntu 24.04 fork, kendi ISO + installer. Bu repo (`ajanox`) L3 (Python paketi) odaklı kalır.
+
 ## Skill yazmak
 
 5 dakika, kod gerek değil:
@@ -145,7 +147,7 @@ Detaylı rehber: [docs/DEVELOPER.md](docs/DEVELOPER.md)
 - ✅ **v0.2.x** — CLI + skill sistemi + güvenlik
 - ✅ **v0.3.x** — Web dashboard + approval modal
 - 🔄 **v1.0** — API stabilizasyonu, ekosistem, dokümantasyon
-- 🔄 **v2.0** — Ajanox Linux remix (Pop_OS modeli) — kendi installer, default shell
+- 🔄 **v2.0** — Ajanox Linux remix (Pop_OS modeli) — kendi installer, default shell · [ajanox-l2](https://github.com/yildirimozal/ajanox-l2) (ayrı repo)
 - 🔄 **v3.0+** — eBPF + LSM ile kernel-derinliğinde policy enforcement
 
 ## Lisans + Katkı
