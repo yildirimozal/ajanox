@@ -1,0 +1,67 @@
+# ISO build artifacts (BÜYÜK — asla commit etme)
+*.iso
+*.img
+*.squashfs
+*.qcow2
+*.vmdk
+*.vdi
+chroot/
+binary/
+cache/
+*.log
+
+# Cubic
+*.cubic
+cubic-output/
+
+# live-build
+config/binary
+config/chroot
+config/common
+config/source
+.build/
+
+# Packer
+packer_cache/
+output-*/
+
+# Debian packaging
+*.deb
+*.ddeb
+*.changes
+*.buildinfo
+debian/files
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/*.substvars
+debian/*.log
+
+# Python (firstrun wizard)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node (gnome-extension)
+node_modules/
+dist/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Branding (büyük dosyalar — LFS veya external)
+branding/wallpapers/*.png
+branding/wallpapers/*.jpg
+!branding/wallpapers/.gitkeep
+
+# Local
+.env
+.env.local
+TODO.local.md

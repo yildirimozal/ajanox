@@ -23,6 +23,8 @@ class Skill:
     permissions: tuple[str, ...] = ()
     icon: str = ""           # emoji veya path; UI'da göster
     example_prompt: str = "" # tıklanınca gönderilen örnek komut
+    requires_os: tuple[str, ...] = ()  # boş = her platform
+    network_domains: tuple[str, ...] = ()  # network.allowed_domains; boş = kısıt yok
 
 
 def parse_frontmatter(text: str) -> dict[str, Any]:
@@ -78,6 +80,20 @@ def load_skill_catalog(skills_dir: Path) -> list[Skill]:
             tuple(str(p) for p in perms_raw) if isinstance(perms_raw, list) else ()
         )
 
+        requires_raw = (fm.get("requires") or {}).get("os") if isinstance(fm.get("requires"), dict) else None
+        requires_os = (
+            tuple(str(o).strip().lower() for o in requires_raw)
+            if isinstance(requires_raw, list)
+            else ()
+        )
+
+        net_raw = (fm.get("network") or {}).get("allowed_domains") if isinstance(fm.get("network"), dict) else None
+        network_domains = (
+            tuple(str(d).strip().lower() for d in net_raw if str(d).strip())
+            if isinstance(net_raw, list)
+            else ()
+        )
+
         catalog.append(
             Skill(
                 name=name,
@@ -87,6 +103,8 @@ def load_skill_catalog(skills_dir: Path) -> list[Skill]:
                 permissions=permissions,
                 icon=str(fm.get("icon", "")).strip(),
                 example_prompt=str(fm.get("example_prompt", "")).strip(),
+                requires_os=requires_os,
+                network_domains=network_domains,
             )
         )
     return catalog

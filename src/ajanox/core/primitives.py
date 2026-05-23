@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import contextvars
 import os
 import subprocess
 from pathlib import Path
 
+from . import sandbox
+
 BASH_TIMEOUT = 30
 MAX_OUTPUT = 4000
+
+# Agent loop, her tool çağrısından önce aktif skill'in permission setini
+# bu ContextVar'a yazar. bash() sandbox'lamak için okur. ContextVar
+# thread-safe — web server worker thread'leri arasında izole.
+ACTIVE_PERMISSIONS: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
+    "ajanox_active_permissions", default=frozenset()
+)
 
 
 def read_file(path: str) -> str:
@@ -34,16 +44,38 @@ def bash(command: str) -> str:
     UYARI: Bu primitive `shell_unsafe` permission'ı ister — yüksek riskli,
     her çağrıda runtime onayı gerekir. Skill'ler bunu doğrudan değil,
     permission katmanı üzerinden çağırmalıdır.
+
+    v0.7+: Sandbox aktifse (bwrap Linux / sandbox-exec macOS) komut izole
+    ortamda çalışır. Hassas dizinler (~/.ssh, ~/.aws, ~/.gnupg) maskelidir,
+    network sadece `network_*` permission'ı varsa açılır.
     """
     print(f"  [bash] $ {command}")
+    plan = sandbox.plan(command, ACTIVE_PERMISSIONS.get())
+
+    if plan.blocked:
+        return f"Hata: sandbox bloğu — {plan.warning}"
+    if plan.warning:
+        print(f"  [sandbox] uyarı: {plan.warning}")
+
+    profile_path: str | None = None
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=BASH_TIMEOUT,
-        )
+        if plan.backend == "none":
+            # Sandbox yok — eski davranış (shell=True)
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=BASH_TIMEOUT,
+            )
+        else:
+            argv, profile_path = sandbox.materialize(plan)
+            result = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                timeout=BASH_TIMEOUT,
+            )
         output = (result.stdout + result.stderr).strip()
         if not output:
             output = f"(exit {result.returncode}, no output)"
@@ -52,6 +84,12 @@ def bash(command: str) -> str:
         return f"Hata: {BASH_TIMEOUT} saniye içinde tamamlanmadı."
     except Exception as exc:
         return f"Hata: {exc}"
+    finally:
+        if profile_path:
+            try:
+                os.unlink(profile_path)
+            except OSError:
+                pass
 
 
 PRIMITIVES = {

@@ -61,7 +61,7 @@ async def index() -> FileResponse:
 
 @app.get("/api/info")
 async def info() -> dict:
-    catalog, sources = _collect_skills()
+    catalog, sources, _skipped = _collect_skills()
     # Dedup: aynı skill name birden fazla kaynaktan gelirse (örn. builtin +
     # cwd/skills) ilk gördüğümüzü tut. Kullanıcı panelde duplikat görmesin.
     seen: set[str] = set()
@@ -290,7 +290,7 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     yapılamadığından deadlock olur (v0.3.1 → v0.4.0 bug'ı, v0.4.1'de düzeltildi).
     """
     await ws.accept()
-    catalog, _ = _collect_skills()
+    catalog, _, _ = _collect_skills()
     model = os.environ.get("AJANOX_MODEL", DEFAULT_MODEL)
     history: list[dict] = []
 

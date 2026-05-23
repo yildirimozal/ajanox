@@ -12,11 +12,19 @@ import os
 import urllib.request
 from pathlib import Path
 
-from . import enforcer
+from . import enforcer, netfilter
+from .audit import log_verification
 from .matcher import find_best_match, format_match_hint
 from .parser import extract_tool_call, strip_tool_call_tags
-from .primitives import PRIMITIVES
+from .primitives import ACTIVE_PERMISSIONS, PRIMITIVES
 from .skill_loader import Skill, format_skill_catalog, load_skill_catalog
+from .verifier import (
+    ToolTrace,
+    VerificationResult,
+    format_warning_text,
+    get_mode,
+    verify,
+)
 
 
 # Match yokken kullanılan default permission seti.
@@ -51,10 +59,14 @@ def check_ollama_health(model: str | None = None, timeout: float = 5.0) -> tuple
         with urllib.request.urlopen(tags_url, timeout=timeout) as resp:
             data = json.loads(resp.read())
     except urllib.error.URLError as exc:
+        from .platform import ollama_host_hint
+
+        wsl_hint = ollama_host_hint()
         return False, (
             f"✗ Ollama'ya bağlanılamıyor ({OLLAMA_BASE}): {getattr(exc, 'reason', exc)}\n"
             f"  Ollama çalışıyor mu? (Terminal: `ollama serve` veya menübar uygulaması)\n"
             + install_hint
+            + (f"\n{wsl_hint}" if wsl_hint else "")
         )
     except Exception as exc:  # noqa: BLE001
         return False, f"✗ Ollama beklenmedik hata: {exc}\n" + install_hint
@@ -237,10 +249,12 @@ def run_agent(
         active_skill = matched_skill.name
         active_perms: tuple[str, ...] = matched_skill.permissions or ()
         active_location: str | None = matched_skill.location
+        active_domains: frozenset[str] = frozenset(matched_skill.network_domains)
     else:
         active_skill = DEFAULT_SYSTEM_SKILL_NAME
         active_perms = DEFAULT_SYSTEM_PERMISSIONS
         active_location = None
+        active_domains = frozenset()
 
     system_prompt = (
         SYSTEM_PROMPT_BASE
@@ -254,6 +268,7 @@ def run_agent(
         {"role": "user", "content": user_input},
     ]
     final_response = ""
+    trace: list[ToolTrace] = []  # bu turda çalışan tool'lar — verifier için
 
     for _ in range(max_iter):
         # Streaming chat: chunk'ları UI'a yolla. Tool call algılanırsa iptal
@@ -275,9 +290,21 @@ def run_agent(
         tool_call = extract_tool_call(content)
         if not tool_call:
             final_response = strip_tool_call_tags(content)
+            verification = _verify_and_emit(final_response, trace, emit)
+            if verification.verdict == "failed":
+                # strict mode: cevabı blokla. Uyarı detayını verification event'i
+                # (UI badge) ve CLI'da format_warning_text gösterir — burada
+                # blocked metnine ekleme yapma (duplicate olur).
+                blocked = "(Cevap doğrulamada başarısız — strict modda gösterilmedi.)"
+                print(f"\nAjanox: {blocked}")
+                print(format_warning_text(verification) + "\n")
+                emit({"type": "final", "content": blocked})
+                return _trimmed(history, user_input, blocked, history_limit)
             print(
                 f"\nAjanox: {final_response}\n" if final_response else "\n(Boş cevap)\n"
             )
+            if verification.warnings:
+                print(format_warning_text(verification) + "\n")
             # Streaming yapıldıysa UI'daki kabarcık zaten dolu — final event ile
             # 'kapanış' yapar (kind: assistant_streaming → assistant). Streaming
             # yapılmadıysa (CLI mode) normal mesaj olarak gösterir.
@@ -291,6 +318,7 @@ def run_agent(
         name = tool_call.get("name", "")
         args = tool_call.get("arguments", {}) or {}
 
+        tool_success = False
         if name not in PRIMITIVES:
             result = f"Hata: '{name}' bilinmeyen tool."
             print(f"  [warn] unknown tool: {name}")
@@ -304,17 +332,46 @@ def run_agent(
             )
             print(f"  [denied] {name} for skill={active_skill}")
             emit({"type": "denied", "tool": name, "skill": active_skill})
+        elif name == "bash" and active_domains and (
+            _dc := netfilter.check_command(str(args.get("command", "")), set(active_domains))
+        ).violations:
+            result = (
+                f"Domain reddedildi: '{active_skill}' skill'i yalnız "
+                f"{sorted(active_domains)} domain'lerine erişebilir; "
+                f"komut şunları hedefliyor: {sorted(_dc.violations)}."
+            )
+            print(f"  [denied-domain] {sorted(_dc.violations)} for skill={active_skill}")
+            emit({
+                "type": "denied",
+                "tool": name,
+                "skill": active_skill,
+                "reason": "domain",
+                "violations": sorted(_dc.violations),
+            })
         else:
             if name != "bash":
                 print(f"  [tool] {name}({args})")
             emit({"type": "tool_call", "tool": name, "args": args})
+            token = ACTIVE_PERMISSIONS.set(frozenset(active_perms))
             try:
                 result = PRIMITIVES[name](**args)
+                tool_success = not str(result).startswith("Hata:")
             except TypeError as exc:
                 result = f"Hata: tool argümanları yanlış: {exc}"
+            finally:
+                ACTIVE_PERMISSIONS.reset(token)
             preview = str(result)[:120].replace("\n", " ")
             print(f"  [out ] {preview}{'…' if len(str(result)) > 120 else ''}")
             emit({"type": "tool_result", "tool": name, "output": str(result)[:1000]})
+
+        trace.append(
+            ToolTrace(
+                name=name,
+                args=dict(args),
+                success=tool_success,
+                output_preview=str(result)[:500],
+            )
+        )
 
         messages.append(
             {"role": "user", "content": f"[TOOL RESULT - {name}]\n{result}"}
@@ -334,6 +391,33 @@ def run_agent(
 
     print("\n(Max iterasyon aşıldı.)\n")
     return _trimmed(history, user_input, final_response, history_limit)
+
+
+def _verify_and_emit(
+    final_response: str,
+    trace: list[ToolTrace],
+    emit,
+) -> VerificationResult:
+    """Verifier'ı çağır, event yolla, audit'e yaz."""
+    mode = get_mode()
+    result = verify(final_response, trace, mode=mode)
+    if not result.ok:
+        emit(
+            {
+                "type": "verification",
+                "verdict": result.verdict,
+                "warnings": [
+                    {"code": w.code, "claim": w.claim, "detail": w.detail}
+                    for w in result.warnings
+                ],
+            }
+        )
+    log_verification(
+        verdict=result.verdict,
+        warning_codes=[w.code for w in result.warnings],
+        mode=mode,
+    )
+    return result
 
 
 def _trimmed(
