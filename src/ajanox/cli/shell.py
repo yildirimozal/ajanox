@@ -8,7 +8,7 @@ from pathlib import Path
 from .. import __version__
 from ..core.agent import DEFAULT_MODEL, check_ollama_health, run_agent
 from ..core.compat import check_skill
-from ..core.platform import current_os, describe, supports_skill_os
+from ..core.platform import describe, supports_skill_os
 from ..core.skill_loader import Skill, load_skill_catalog
 
 

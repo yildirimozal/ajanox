@@ -5,7 +5,6 @@ cryptography kurulu olmalı (ajanox[signing]). Kurulu değilse tüm modül skip.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 

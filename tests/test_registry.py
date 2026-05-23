@@ -1,7 +1,5 @@
 """Skill registry testleri."""
 
-import json
-from pathlib import Path
 
 import pytest
 

@@ -17,13 +17,10 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Iterable
 
 from ..core import registry as reg_mod
 from ..core.permissions import (
-    FORBIDDEN_PERMISSIONS,
     PERMISSION_RISK,
-    RiskLevel,
     validate_permissions,
 )
 from ..core.skill_loader import Skill, load_skill_catalog, parse_frontmatter
@@ -451,7 +448,7 @@ def _cmd_remove(ns: argparse.Namespace) -> int:
         print(f"✓ Kaldırıldı: {ns.name}")
         return 0
     print(f"✗ Yüklü skill bulunamadı: {ns.name}", file=sys.stderr)
-    print(f"  (`ajanox skill list --source user` ile yüklü skill'leri gör)", file=sys.stderr)
+    print("  (`ajanox skill list --source user` ile yüklü skill'leri gör)", file=sys.stderr)
     return 1
 
 
