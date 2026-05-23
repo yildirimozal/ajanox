@@ -286,12 +286,12 @@ def run_agent(
             final_response = strip_tool_call_tags(content)
             verification = _verify_and_emit(final_response, trace, emit)
             if verification.verdict == "failed":
-                # strict mode: cevabı blokla, kullanıcıya neden olmadığını söyle
-                blocked = (
-                    "(Cevap doğrulamada başarısız — strict modda gösterilmedi.)\n\n"
-                    + format_warning_text(verification)
-                )
-                print(f"\nAjanox: {blocked}\n")
+                # strict mode: cevabı blokla. Uyarı detayını verification event'i
+                # (UI badge) ve CLI'da format_warning_text gösterir — burada
+                # blocked metnine ekleme yapma (duplicate olur).
+                blocked = "(Cevap doğrulamada başarısız — strict modda gösterilmedi.)"
+                print(f"\nAjanox: {blocked}")
+                print(format_warning_text(verification) + "\n")
                 emit({"type": "final", "content": blocked})
                 return _trimmed(history, user_input, blocked, history_limit)
             print(

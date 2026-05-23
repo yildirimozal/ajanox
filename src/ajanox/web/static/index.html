@@ -102,6 +102,21 @@
         .msg pre { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
         .msg .role { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 
+        .verification {
+            margin: 6px 0 12px 0;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+            border-left: 3px solid;
+        }
+        .verification.suspicious { background: #2a2410; border-color: #b88a2a; color: #d4b572; }
+        .verification.failed { background: #2a1414; border-color: #c04444; color: #e89090; }
+        .verification .v-title { font-weight: 600; margin-bottom: 4px; }
+        .verification ul { margin: 0; padding-left: 18px; }
+        .verification li { margin: 2px 0; }
+        .verification code { background: rgba(0,0,0,0.25); padding: 1px 4px; border-radius: 3px; }
+
         .composer {
             border-top: 1px solid var(--border);
             background: var(--panel);
@@ -392,6 +407,17 @@
                     <pre v-if="m.kind === 'denied' || m.kind === 'warn'">{{ m.content }}</pre>
                     <div v-else style="white-space: pre-wrap;">{{ m.content }}</div>
                 </div>
+                <div v-if="m.verification" :class="['verification', m.verification.verdict]">
+                    <div class="v-title">
+                        {{ m.verification.verdict === 'failed' ? '✗' : '⚠' }}
+                        Doğrulama ({{ m.verification.verdict === 'failed' ? 'blocked' : 'şüpheli' }})
+                    </div>
+                    <ul>
+                        <li v-for="(w, j) in m.verification.warnings" :key="j">
+                            <code>{{ w.code }}</code> — {{ w.detail }}
+                        </li>
+                    </ul>
+                </div>
                 <details v-if="m.events && m.events.length" class="details">
                     <summary>Detaylar ({{ m.events.length }} adım)</summary>
                     <div class="event-list">
@@ -524,6 +550,7 @@ createApp({
         const approvalRequest = ref(null);
         let ws = null;
         let currentEvents = [];        // turn boyunca biriken event log
+        let pendingVerification = null; // verification event'i final'a kadar bekler
         let turnStart = 0;
         let timerId = null;
 
@@ -628,6 +655,17 @@ createApp({
                     });
                     currentEvents.push({ label: 'warn', text: event.message });
                     break;
+                case 'verification':
+                    // Final'dan ÖNCE gelir — buffer'la, final geldiğinde bağla
+                    pendingVerification = {
+                        verdict: event.verdict,
+                        warnings: event.warnings || [],
+                    };
+                    currentEvents.push({
+                        label: 'verify',
+                        text: `${event.verdict}: ${(event.warnings || []).map(w => w.code).join(', ')}`,
+                    });
+                    break;
                 case 'assistant_chunk': {
                     // Son mesaj streaming ise append, değilse yeni stream baloncuğu
                     const lastIdx = messages.value.length - 1;
@@ -666,15 +704,18 @@ createApp({
                             last.content = event.content;
                         }
                         last.events = evList;
+                        if (pendingVerification) last.verification = pendingVerification;
                     } else if (event.content) {
                         messages.value.push({
                             kind: 'assistant',
                             role: 'Ajanox',
                             content: event.content,
                             events: evList,
+                            verification: pendingVerification,
                         });
                     }
                     currentEvents = [];
+                    pendingVerification = null;
                     activity.value = '';
                     break;
                 }
@@ -857,6 +898,7 @@ createApp({
             status.value = 'Düşünüyor…';
             activity.value = 'başlıyor';
             currentEvents = [];
+            pendingVerification = null;
             startTimer();
             scrollDown();
         };

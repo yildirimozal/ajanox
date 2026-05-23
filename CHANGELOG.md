@@ -19,7 +19,10 @@ formatı, [SemVer](https://semver.org) sürümleme.
   - `strict` — uyarı varsa cevabı blokla, kullanıcıya neden olmadığını söyle
   - `off` — tamamen kapalı
 - Yeni event tipi `verification` — WebSocket üzerinden web dashboard'a yollanır
-  (UI tarafında badge eklemek v0.7+ konusu)
+- **Web dashboard verification badge** — şüpheli/blocked cevabın altında renkli
+  uyarı kutusu (sarı = suspicious, kırmızı = failed). Her uyarı için
+  `code` + detail. Strict modda blocked cevap "(Cevap doğrulamada başarısız)"
+  metni + kırmızı badge ile görünür.
 - Audit log entry: `event=verification` — verdict + warning_codes + mode
 - 7 TR past-tense action regex (sil/kur/yükle/çalıştır/durdur/oku/listele)
   + negatif/imperatif/future formlar yanlış yakalanmaz
