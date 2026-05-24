@@ -44,6 +44,17 @@ def test_load_real_skills():
     assert "mac-notification" in names
 
 
+def test_load_zip_folder_skill():
+    """zip-folder skill'inin doğru yüklendiğini doğrular."""
+    pkg_root = Path(__file__).resolve().parents[1]
+    skills_dir = pkg_root / "skills"
+    catalog = load_skill_catalog(skills_dir)
+    skill = next((s for s in catalog if s.name == "zip-folder"), None)
+    assert skill is not None, "zip-folder skill yüklenemedi"
+    assert "zip" in skill.description.lower() or "yedek" in skill.description.lower()
+    assert skill.requires_os == ("linux", "darwin")
+
+
 def test_load_parses_requires_os_and_network_domains(tmp_path):
     skill_dir = tmp_path / "netskill"
     skill_dir.mkdir()
