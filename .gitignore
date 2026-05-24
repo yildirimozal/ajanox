@@ -45,3 +45,6 @@ htmlcov/
 ~/.ajanox/
 .ajanox/
 *.log
+
+# Claude Code (yerel agent artefaktları)
+.claude/
