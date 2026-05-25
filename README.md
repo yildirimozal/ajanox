@@ -6,7 +6,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/ajanox.svg)](https://pypi.org/project/ajanox/)
 [![Python](https://img.shields.io/pypi/pyversions/ajanox.svg)](https://pypi.org/project/ajanox/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-230%2F230-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-260%2F260-brightgreen)](tests/)
 
 ---
 
@@ -86,7 +86,7 @@ Not: 7B model tool-calling'de %20-50 daha az tutarlı. 14B kullanım için 16 GB
 | `pip install 'ajanox[web]'` zsh hata | Tırnak şart (`[web]`'i shell glob sanıyor) |
 | Web dashboard'da "Skill yükleniyor…" hiç bitmiyor | Server'ı kontrol et — terminal'de `ajanox web` çalışıyor olmalı |
 
-## Yerleşik skill'ler (v0.3.1)
+## Yerleşik skill'ler
 
 | Skill | Ne yapar | Permissions |
 |---|---|---|

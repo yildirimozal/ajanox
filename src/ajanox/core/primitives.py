@@ -6,6 +6,7 @@ import contextvars
 import os
 import subprocess
 from pathlib import Path
+from typing import Callable
 
 from . import sandbox
 
@@ -92,7 +93,7 @@ def bash(command: str) -> str:
                 pass
 
 
-PRIMITIVES = {
+PRIMITIVES: dict[str, Callable[..., str]] = {
     "read_file": read_file,
     "list_files": list_files,
     "bash": bash,

@@ -196,6 +196,39 @@ def chat_stream(messages: list[dict], model: str = DEFAULT_MODEL, on_chunk=None)
     return last_message
 
 
+# Primitive argüman şemaları: tool → doğrulanacak zorunlu string argümanlar.
+_TOOL_REQUIRED_STR_ARGS: dict[str, tuple[str, ...]] = {
+    "bash": ("command",),
+    "read_file": ("path",),
+    "list_files": ("directory",),
+}
+_MAX_ARG_LEN = 4096
+_ALLOWED_CONTROL = {"\t", "\n", "\r"}
+
+
+def verify_tool_call(name: str, args: dict) -> str | None:
+    """Parse edilmiş tool çağrısını primitive imzasına karşı doğrula.
+
+    Enforcement'tan ÖNCE çalışır — model çıktısı parse edilmiş olsa da içeriğine
+    güvenilmez (T2 halüsinasyon). Sorun varsa hata mesajı, temizse None döner.
+    """
+    if name not in _TOOL_REQUIRED_STR_ARGS:
+        return None  # bilinmeyen tool PRIMITIVES kontrolünde reddedilir
+    if not isinstance(args, dict):
+        return f"Hata: '{name}' argümanları sözlük olmalı."
+    for key in _TOOL_REQUIRED_STR_ARGS[name]:
+        val = args.get(key)
+        if not isinstance(val, str):
+            return f"Hata: '{name}' için '{key}' string olmalı (gelen: {type(val).__name__})."
+        if not val.strip():
+            return f"Hata: '{name}' için '{key}' boş olamaz."
+        if len(val) > _MAX_ARG_LEN:
+            return f"Hata: '{name}' için '{key}' çok uzun ({len(val)} > {_MAX_ARG_LEN} karakter)."
+        if any(ord(c) < 32 and c not in _ALLOWED_CONTROL for c in val):
+            return f"Hata: '{name}' için '{key}' geçersiz kontrol karakteri içeriyor."
+    return None
+
+
 def run_agent(
     user_input: str,
     catalog: list[Skill],
@@ -318,10 +351,15 @@ def run_agent(
         args = tool_call.get("arguments", {}) or {}
 
         tool_success = False
+        verify_err = verify_tool_call(name, args)
         if name not in PRIMITIVES:
             result = f"Hata: '{name}' bilinmeyen tool."
             print(f"  [warn] unknown tool: {name}")
             emit({"type": "warn", "message": f"unknown tool: {name}"})
+        elif verify_err:
+            result = verify_err
+            print(f"  [reject] {verify_err}")
+            emit({"type": "warn", "message": verify_err})
         elif not enforcer.enforce(
             active_skill, active_perms, name, args, skill_location=active_location
         ):
@@ -388,8 +426,13 @@ def run_agent(
                 }
             )
 
-    print("\n(Max iterasyon aşıldı.)\n")
-    return _trimmed(history, user_input, final_response, history_limit)
+    fallback = (
+        f"İşlemi {max_iter} adımda tamamlayamadım. İsteğini daha küçük adımlara "
+        "bölersen ya da tekrar denersen yardımcı olabilirim."
+    )
+    print(f"\n(Max iterasyon aşıldı — {max_iter} adım)\n")
+    emit({"type": "final", "content": final_response or fallback})
+    return _trimmed(history, user_input, final_response or fallback, history_limit)
 
 
 def _verify_and_emit(

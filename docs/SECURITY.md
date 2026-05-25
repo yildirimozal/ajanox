@@ -11,7 +11,7 @@ Ajanox güvenlik modelinin dört yön ilkesi:
 
 1. **Açık beyan** — Skill ne yapacağını manifest'inde söyler. Beyan etmediği permission'ı kullanamaz.
 2. **Default-deny** — Beyan yoksa erişim yok. Sessiz başarısızlık, sessiz yetkilendirme yok.
-3. **Defense-in-depth** — Permission + whitelist + sandbox birden çok katman. Birinde bug olursa diğeri yakalar.
+3. **Defense-in-depth** — Permission + whitelist + sandbox (v0.7+) + tool-call doğrulama (v0.6+) + domain allowlist (v0.9+) + imzalama (v0.9+). Birinde bug olursa diğeri yakalar (bkz §3.4 ve §3.8).
 4. **Görünür tehlike, sessiz güven** — Düşük risk sessizce çalışır, yüksek risk her zaman kullanıcıya görünür (Android modeli).
 
 ---
@@ -64,17 +64,25 @@ Primitives.bash() gerçekten çalıştırır
 Eğer skill beyan etmemişse veya bilinmeyen kategori → çağrı **reddedilir**, kullanıcıya
 bildirilir.
 
-### 3.2 shell_safe whitelist
+### 3.2 shell_safe whitelist + metakarakter taraması
 
-`core/whitelist.yml` zaten yazıldı (33 komut). Runtime'da bash çağrısı geldiğinde:
+`core/whitelist.yml` (33 komut). Runtime'da bash çağrısı geldiğinde (`core/enforcer.py`):
 
-1. Komut parse edilir (ilk kelime = binary)
-2. Whitelist'te var mı kontrol edilir
-3. Pipe (`|`) ve redirect varsa, her parça için aynı kontrol
-4. Hepsi whitelist'te → shell_safe; biri değil → shell_unsafe
+1. Komut **tırnak-duyarlı** olarak segmentlere bölünür (`|`, `&&`, `||`, `;`, newline).
+   Tırnak içindeki operatörler segment sayılmaz.
+2. Her segmentin ilk binary'si whitelist'e bakılır; hepsi safe → shell_safe, biri
+   değil → shell_unsafe (en yüksek riskli segment kazanır).
+3. Kabuk metakarakterleri ayrıca taranır (`_scan_shell_features`) — çünkü komut
+   `shell=True` ile çalışır ve bunlar binary kontrolünün kör noktasıdır:
+   - Dosyaya redirect (`>`, `>>`, `&>`; `/dev/null` gibi benign hedefler hariç) → **file_write**
+   - Command substitution (`$(...)`, `` `...` ``) → iç komut özyinelemeli sınıflandırılır
+   - Process substitution (`<(...)`), background (`&`), çözülemeyen substitution → **shell_unsafe** (fail-closed)
+4. Tehlikeli flag tespiti **aktif**: `find -delete/-exec`, `sed -i` → shell_unsafe
+   (`whitelist.yml: dangerous_flags`).
 
-Tehlikeli flag tespiti (sed -i, find -delete, vs.) — v0.3'e ertelenir. v0.2'de
-sadece binary-level kontrol yeter.
+> **İlke:** Sınıflandırıcı, `shell=True` ile çalışan komutun tamamını hesaba
+> katamadığı her durumda fail-closed (shell_unsafe) olur. (Karar B'de "flag-level
+> v0.3'e ertelenir" denmişti; kritik flag'ler v0.6'da öne alındı.)
 
 ### 3.3 Runtime approval prompts
 
@@ -97,19 +105,26 @@ Seçenekler:
 
 `sudo` için **T** seçeneği YOK, her seferinde sor.
 
-### 3.4 Sandboxing (defense-in-depth)
+### 3.4 Sandboxing (defense-in-depth) — ✅ AKTİF (v0.7+)
 
-Permission yetersizse veya kullanıcı paranoid mod istiyorsa:
+`core/sandbox.py` v0.7'de eklendi; bash çağrıları **default olarak** izole bir
+ortamda çalışır. Hassas dizinler (`~/.ssh`, `~/.aws`, `~/.gnupg`) maskelidir,
+network erişimi sadece skill `network_*` permission'ı beyan etmişse açılır.
+Skill'in çalışan permission seti `primitives.ACTIVE_PERMISSIONS` ContextVar'ından
+okunur (thread-safe).
 
-| Platform | v0.2 yaklaşım | Sonraki |
+| Platform | Backend | Notlar |
 |---|---|---|
-| macOS | `sandbox-exec -f <profile.sb>` (deprecated ama çalışır) | v0.4: Endpoint Security framework |
-| Linux | `bwrap` (bubblewrap) veya `firejail` | v0.4: namespaces + seccomp doğrudan |
-| Universal | Docker container (heavy, opt-in) | v1.0+: Firecracker microVM |
+| Linux | `bwrap` (bubblewrap) | Bind-mount maskeleme, network namespace |
+| macOS | `sandbox-exec -p <profile>` | Apple "deprecated" damgalamış olsa da çalışır |
+| Diğer / yok | `none` | Sandbox uygun değilse uyarı verir, eski davranışa düşer |
 
-**v0.2 stratejisi:** Sandbox **opt-in**. Default'ta permission + whitelist yeter
-(genel kullanıcı için friction'ı azaltır). Power user'lar `AJANOX_SANDBOX=strict`
-ile aktif eder.
+`core/netfilter.py` (v0.9) ek olarak skill manifest'inde beyan edilen
+`network.allowed_domains` listesini userspace seviyesinde uygular — sandbox
+network'ü açılmış olsa da listede olmayan domain reddedilir.
+
+Roadmap: v3.0+ için eBPF/LSM ile kernel-seviyesi enforcement
+(bkz `docs/roadmap-v2-v3.md`).
 
 ### 3.5 Prompt injection mitigation
 
@@ -168,6 +183,30 @@ Marketplace skill'leri için PKI:
 - Yüklemede imza doğrulanır
 
 v0.2-v0.5'te bu yok — sadece elle yüklenen skill'ler veya resmi `skills/` dizinindekiler.
+
+### 3.8 Bilinen sınırlar / mevcut tehdit kapsamı (v1.0)
+
+| Kontrol | Durum | Not |
+|---|---|---|
+| Permission default-deny + whitelist | ✅ aktif | Çekirdek kontrol katmanı |
+| Redirect / command-substitution / background sınıflandırma | ✅ aktif (v0.6) | `_scan_shell_features`, fail-closed |
+| Kritik yol (yazma) onayı | ✅ aktif | `critical_paths.yml`, `$HOME`/`${HOME}` genişletmeli |
+| Hassas dosya (okuma) onayı | ✅ aktif (v0.6) | `sensitive_read.yml` — `~/.ssh`, kimlik dosyaları, dotfile'lar |
+| Tool-call doğrulama (pre-exec, T2) | ✅ aktif (v0.6) | `agent.verify_tool_call` — şema/boyut/kontrol-karakteri |
+| Tool-call doğrulama (post-exec, T2) | ✅ aktif (v0.6) | `core/verifier.py` — iddia/trace cross-check |
+| Bash sandbox (syscall-yakın izolasyon) | ✅ aktif (v0.7) | `bwrap` / `sandbox-exec`, default-on, hassas dirler maskeli |
+| Cross-platform (WSL2) | ✅ aktif (v0.8) | `core/platform.py` |
+| Network domain allowlist | ✅ aktif (v0.9) | `core/netfilter.py`, userspace |
+| Skill imzalama (T4) | ✅ aktif (v0.9) | `core/signing.py`, ed25519 + TOFU |
+| Sürüm / Spec uyum kontrolü | ✅ aktif (v1.0) | `core/compat.py` |
+| Audit log | ✅ aktif | `result_hash` alanı henüz yok |
+| Prompt injection sarma (T3) | ⚠️ kısmi | Tool çıktısı `[TOOL RESULT]` ile etiketli ama §3.5'teki marker'lar tam değil |
+| Kernel-seviyesi LSM/eBPF | ❌ yok | Roadmap v3.0+ (`docs/roadmap-v2-v3.md`) |
+
+**Şu an garanti edilmeyenler:** Userspace netfilter atlatma vektörleri (örn.
+sandbox-altı raw socket); LSM/eBPF kernel-seviyesi enforcement v3.0+'a kadar yok.
+Sandbox default-on olsa da whitelist'teki Turing-tam binary'lerin (örn. `awk`,
+`find`) kötüye kullanım yüzeyi vardır; sınıflandırıcı niyeti değil yüzeyi denetler.
 
 ---
 

@@ -32,6 +32,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.1",
+    "mypy>=1.0",
 ]
 web = [
     "fastapi>=0.110",
@@ -58,6 +59,11 @@ packages = ["src/ajanox"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+files = ["src/ajanox"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

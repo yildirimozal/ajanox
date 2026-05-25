@@ -1,0 +1,49 @@
+# Hassas okuma desenleri — read_file/list_files veya bir bash komutu bu desenlere
+# dokunduğunda, `file_read` izni LOW olsa bile her seferinde runtime onay gerekir.
+# (Sessiz veri sızdırma vektörünü kapatır: file_read + network_read kombinasyonu.)
+#
+# critical_paths.yml YAZMA-hassas yerleri tarif eder; bu dosya OKUMA-hassas
+# (kimlik/sır) dosyaları tarif eder. Yeni desen eklemek: minor version bump.
+
+# Yol parçaları — komut/path içinde substring olarak aranır (tilde + $HOME genişletilir).
+sensitive_read_paths:
+  - ~/.ssh
+  - ~/.aws
+  - ~/.gnupg
+  - ~/.kube
+  - ~/.docker
+  - ~/.config/gcloud
+  - ~/.netrc
+  - ~/.npmrc
+  - ~/.pypirc
+  - ~/.git-credentials
+  - ~/.bash_history
+  - ~/.zsh_history
+  - ~/.python_history
+  - ~/.mysql_history
+
+# Dosya adı glob desenleri — bir path token'ının basename'ine fnmatch uygulanır.
+sensitive_read_globs:
+  - id_rsa
+  - id_dsa
+  - id_ecdsa
+  - id_ed25519
+  - "*.pem"
+  - "*.key"
+  - "*.p12"
+  - "*.pfx"
+  - "*.keystore"
+  - "*.kdbx"
+  - "*.ovpn"
+  - ".env"
+  - ".env.*"
+  - ".netrc"
+  - ".htpasswd"
+  - "credentials"
+  - ".git-credentials"
+  - "key3.db"
+  - "key4.db"
+  - "logins.json"
+  - "cookies.sqlite"
+  - "Cookies"
+  - "Login Data"
